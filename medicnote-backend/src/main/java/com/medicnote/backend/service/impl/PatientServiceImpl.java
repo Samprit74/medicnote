@@ -2,6 +2,7 @@ package com.medicnote.backend.service.impl;
 
 import com.medicnote.backend.dto.PatientDTO;
 import com.medicnote.backend.entity.Patient;
+import com.medicnote.backend.exception.ResourceNotFoundException;
 import com.medicnote.backend.mapper.PatientMapper;
 import com.medicnote.backend.repository.PatientRepository;
 import com.medicnote.backend.service.PatientService;
@@ -42,7 +43,7 @@ public class PatientServiceImpl implements PatientService {
     public PatientDTO getPatientById(Long id) {
 
         Patient patient = patientRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Patient not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Patient not found"));
 
         return PatientMapper.toDTO(patient);
     }
@@ -51,7 +52,7 @@ public class PatientServiceImpl implements PatientService {
     public PatientDTO updatePatient(Long id, PatientDTO patientDTO) {
 
         Patient existing = patientRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Patient not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Patient not found"));
 
         existing.setName(patientDTO.getName());
         existing.setEmail(patientDTO.getEmail());
@@ -64,6 +65,11 @@ public class PatientServiceImpl implements PatientService {
 
     @Override
     public void deletePatient(Long id) {
+
+        if (!patientRepository.existsById(id)) {
+            throw new ResourceNotFoundException("Patient not found");
+        }
+
         patientRepository.deleteById(id);
     }
 }
