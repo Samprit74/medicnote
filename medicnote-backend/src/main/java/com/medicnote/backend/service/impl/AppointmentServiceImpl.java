@@ -8,6 +8,7 @@ import com.medicnote.backend.dto.AppointmentDTO;
 import com.medicnote.backend.entity.Appointment;
 import com.medicnote.backend.entity.Doctor;
 import com.medicnote.backend.entity.Patient;
+import com.medicnote.backend.exception.ResourceNotFoundException;
 import com.medicnote.backend.mapper.AppointmentMapper;
 import com.medicnote.backend.repository.AppointmentRepository;
 import com.medicnote.backend.repository.DoctorRepository;
@@ -36,10 +37,10 @@ public class AppointmentServiceImpl implements AppointmentService {
         appointment.setStatus("Appointment as scheduled");
 
         Doctor doctor = doctorRepository.findById(dto.getDoctorId())
-                .orElseThrow(() -> new RuntimeException("Invalid Doctor ID"));
+                .orElseThrow(() -> new ResourceNotFoundException("Doctor not found"));
 
         Patient patient = patientRepository.findById(dto.getPatientId())
-                .orElseThrow(() -> new RuntimeException("Invalid Patient ID"));
+                .orElseThrow(() -> new ResourceNotFoundException("Patient not found"));
 
         appointment.setDoctor(doctor);
         appointment.setPatient(patient);
@@ -53,7 +54,7 @@ public class AppointmentServiceImpl implements AppointmentService {
     public AppointmentDTO GetAppoint(Long id) {
 
         Appointment appointment = appointmentRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Invalid Appointment ID"));
+                .orElseThrow(() -> new ResourceNotFoundException("Appointment not found"));
 
         return AppointmentMapper.toDTO(appointment);
     }
@@ -62,17 +63,17 @@ public class AppointmentServiceImpl implements AppointmentService {
     public AppointmentDTO update(Long id, AppointmentDTO dto) {
 
         Appointment existing = appointmentRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Invalid Appointment ID"));
+                .orElseThrow(() -> new ResourceNotFoundException("Appointment not found"));
 
         existing.setAppointmentDate(dto.getAppointmentDate());
         existing.setAppointmentTime(dto.getAppointmentTime());
         existing.setReason(dto.getReason());
 
         Doctor doctor = doctorRepository.findById(dto.getDoctorId())
-                .orElseThrow(() -> new RuntimeException("Invalid Doctor ID"));
+                .orElseThrow(() -> new ResourceNotFoundException("Doctor not found"));
 
         Patient patient = patientRepository.findById(dto.getPatientId())
-                .orElseThrow(() -> new RuntimeException("Invalid Patient ID"));
+                .orElseThrow(() -> new ResourceNotFoundException("Patient not found"));
 
         existing.setDoctor(doctor);
         existing.setPatient(patient);
@@ -84,6 +85,10 @@ public class AppointmentServiceImpl implements AppointmentService {
 
     @Override
     public ResponseEntity<String> Delete(Long id) {
+
+        if (!appointmentRepository.existsById(id)) {
+            throw new ResourceNotFoundException("Appointment not found");
+        }
 
         appointmentRepository.deleteById(id);
         return ResponseEntity.ok("Appointment cancelled");

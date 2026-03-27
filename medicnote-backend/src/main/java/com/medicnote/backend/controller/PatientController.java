@@ -2,6 +2,9 @@ package com.medicnote.backend.controller;
 
 import com.medicnote.backend.dto.PatientDTO;
 import com.medicnote.backend.service.PatientService;
+
+import jakarta.validation.Valid;
+
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -17,7 +20,7 @@ public class PatientController {
     }
 
     @PostMapping
-    public PatientDTO createPatient(@RequestBody PatientDTO patientDTO) {
+    public PatientDTO createPatient(@Valid @RequestBody PatientDTO patientDTO) {
         return patientService.savePatient(patientDTO);
     }
 
@@ -32,7 +35,7 @@ public class PatientController {
     }
 
     @PutMapping("/{id}")
-    public PatientDTO updatePatient(@PathVariable Long id, @RequestBody PatientDTO patientDTO) {
+    public PatientDTO updatePatient(@PathVariable Long id, @Valid @RequestBody PatientDTO patientDTO) {
         return patientService.updatePatient(id, patientDTO);
     }
 

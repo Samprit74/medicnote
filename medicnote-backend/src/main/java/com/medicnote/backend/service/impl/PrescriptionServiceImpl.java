@@ -4,6 +4,7 @@ import com.medicnote.backend.dto.PrescriptionDTO;
 import com.medicnote.backend.entity.Doctor;
 import com.medicnote.backend.entity.Patient;
 import com.medicnote.backend.entity.Prescription;
+import com.medicnote.backend.exception.ResourceNotFoundException;
 import com.medicnote.backend.mapper.PrescriptionMapper;
 import com.medicnote.backend.repository.DoctorRepository;
 import com.medicnote.backend.repository.PatientRepository;
@@ -36,10 +37,10 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         Prescription prescription = PrescriptionMapper.toEntity(dto);
 
         Doctor doctor = doctorRepository.findById(dto.getDoctorId())
-                .orElseThrow(() -> new RuntimeException("Doctor not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Doctor not found"));
 
         Patient patient = patientRepository.findById(dto.getPatientId())
-                .orElseThrow(() -> new RuntimeException("Patient not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Patient not found"));
 
         prescription.setDoctor(doctor);
         prescription.setPatient(patient);
@@ -62,7 +63,7 @@ public class PrescriptionServiceImpl implements PrescriptionService {
     public PrescriptionDTO getPrescriptionById(Long id) {
 
         Prescription prescription = prescriptionRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Prescription not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Prescription not found"));
 
         return PrescriptionMapper.toDTO(prescription);
     }
@@ -71,7 +72,7 @@ public class PrescriptionServiceImpl implements PrescriptionService {
     public PrescriptionDTO updatePrescription(Long id, PrescriptionDTO dto) {
 
         Prescription existing = prescriptionRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Prescription not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Prescription not found"));
 
         existing.setMedicine(dto.getMedicine());
         existing.setDosage(dto.getDosage());
@@ -79,10 +80,10 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         existing.setDate(dto.getDate());
 
         Doctor doctor = doctorRepository.findById(dto.getDoctorId())
-                .orElseThrow(() -> new RuntimeException("Doctor not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Doctor not found"));
 
         Patient patient = patientRepository.findById(dto.getPatientId())
-                .orElseThrow(() -> new RuntimeException("Patient not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Patient not found"));
 
         existing.setDoctor(doctor);
         existing.setPatient(patient);
@@ -94,6 +95,11 @@ public class PrescriptionServiceImpl implements PrescriptionService {
 
     @Override
     public void deletePrescription(Long id) {
+
+        if (!prescriptionRepository.existsById(id)) {
+            throw new ResourceNotFoundException("Prescription not found");
+        }
+
         prescriptionRepository.deleteById(id);
     }
 }
