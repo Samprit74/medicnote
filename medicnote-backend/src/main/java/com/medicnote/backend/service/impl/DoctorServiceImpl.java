@@ -2,8 +2,10 @@ package com.medicnote.backend.service.impl;
 
 import com.medicnote.backend.dto.DoctorDTO;
 import com.medicnote.backend.entity.Doctor;
+import com.medicnote.backend.mapper.DoctorMapper;
 import com.medicnote.backend.repository.DoctorRepository;
 import com.medicnote.backend.service.DoctorService;
+
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -21,69 +23,43 @@ public class DoctorServiceImpl implements DoctorService {
     @Override
     public DoctorDTO saveDoctor(DoctorDTO doctorDTO) {
 
-        Doctor doctor = new Doctor();
-        doctor.setName(doctorDTO.getName());
-        doctor.setEmail(doctorDTO.getEmail());
-        doctor.setSpecialization(doctorDTO.getSpecialization());
+        Doctor doctor = DoctorMapper.toEntity(doctorDTO);
+        Doctor saved = doctorRepository.save(doctor);
 
-        Doctor savedDoctor = doctorRepository.save(doctor);
-
-        DoctorDTO response = new DoctorDTO();
-        response.setId(savedDoctor.getId());
-        response.setName(savedDoctor.getName());
-        response.setEmail(savedDoctor.getEmail());
-        response.setSpecialization(savedDoctor.getSpecialization());
-
-        return response;
+        return DoctorMapper.toDTO(saved);
     }
 
     @Override
     public List<DoctorDTO> getAllDoctors() {
 
-        List<Doctor> doctors = doctorRepository.findAll();
-
-        return doctors.stream().map(doctor -> {
-            DoctorDTO dto = new DoctorDTO();
-            dto.setId(doctor.getId());
-            dto.setName(doctor.getName());
-            dto.setEmail(doctor.getEmail());
-            dto.setSpecialization(doctor.getSpecialization());
-            return dto;
-        }).collect(Collectors.toList());
+        return doctorRepository.findAll()
+                .stream()
+                .map(DoctorMapper::toDTO)
+                .collect(Collectors.toList());
     }
 
     @Override
     public DoctorDTO getDoctorById(Long id) {
 
-        Doctor doctor = doctorRepository.findById(id).orElseThrow();
+        Doctor doctor = doctorRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Doctor not found"));
 
-        DoctorDTO dto = new DoctorDTO();
-        dto.setId(doctor.getId());
-        dto.setName(doctor.getName());
-        dto.setEmail(doctor.getEmail());
-        dto.setSpecialization(doctor.getSpecialization());
-
-        return dto;
+        return DoctorMapper.toDTO(doctor);
     }
 
     @Override
     public DoctorDTO updateDoctor(Long id, DoctorDTO doctorDTO) {
 
-        Doctor doctor = doctorRepository.findById(id).orElseThrow();
+        Doctor existing = doctorRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Doctor not found"));
 
-        doctor.setName(doctorDTO.getName());
-        doctor.setEmail(doctorDTO.getEmail());
-        doctor.setSpecialization(doctorDTO.getSpecialization());
+        existing.setName(doctorDTO.getName());
+        existing.setEmail(doctorDTO.getEmail());
+        existing.setSpecialization(doctorDTO.getSpecialization());
 
-        Doctor updatedDoctor = doctorRepository.save(doctor);
+        Doctor updated = doctorRepository.save(existing);
 
-        DoctorDTO response = new DoctorDTO();
-        response.setId(updatedDoctor.getId());
-        response.setName(updatedDoctor.getName());
-        response.setEmail(updatedDoctor.getEmail());
-        response.setSpecialization(updatedDoctor.getSpecialization());
-
-        return response;
+        return DoctorMapper.toDTO(updated);
     }
 
     @Override

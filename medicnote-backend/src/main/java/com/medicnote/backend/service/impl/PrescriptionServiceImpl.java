@@ -4,10 +4,12 @@ import com.medicnote.backend.dto.PrescriptionDTO;
 import com.medicnote.backend.entity.Doctor;
 import com.medicnote.backend.entity.Patient;
 import com.medicnote.backend.entity.Prescription;
+import com.medicnote.backend.mapper.PrescriptionMapper;
 import com.medicnote.backend.repository.DoctorRepository;
 import com.medicnote.backend.repository.PatientRepository;
 import com.medicnote.backend.repository.PrescriptionRepository;
 import com.medicnote.backend.service.PrescriptionService;
+
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -29,95 +31,65 @@ public class PrescriptionServiceImpl implements PrescriptionService {
     }
 
     @Override
-    public PrescriptionDTO savePrescription(PrescriptionDTO prescriptionDTO) {
+    public PrescriptionDTO savePrescription(PrescriptionDTO dto) {
 
-        Doctor doctor = doctorRepository.findById(prescriptionDTO.getDoctorId()).orElseThrow();
-        Patient patient = patientRepository.findById(prescriptionDTO.getPatientId()).orElseThrow();
+        Prescription prescription = PrescriptionMapper.toEntity(dto);
 
-        Prescription prescription = new Prescription();
-        prescription.setMedicine(prescriptionDTO.getMedicine());
-        prescription.setDosage(prescriptionDTO.getDosage());
-        prescription.setNotes(prescriptionDTO.getNotes());
-        prescription.setDate(prescriptionDTO.getDate());
+        Doctor doctor = doctorRepository.findById(dto.getDoctorId())
+                .orElseThrow(() -> new RuntimeException("Doctor not found"));
+
+        Patient patient = patientRepository.findById(dto.getPatientId())
+                .orElseThrow(() -> new RuntimeException("Patient not found"));
+
         prescription.setDoctor(doctor);
         prescription.setPatient(patient);
 
-        Prescription savedPrescription = prescriptionRepository.save(prescription);
+        Prescription saved = prescriptionRepository.save(prescription);
 
-        PrescriptionDTO response = new PrescriptionDTO();
-        response.setId(savedPrescription.getId());
-        response.setMedicine(savedPrescription.getMedicine());
-        response.setDosage(savedPrescription.getDosage());
-        response.setNotes(savedPrescription.getNotes());
-        response.setDate(savedPrescription.getDate());
-        response.setDoctorId(savedPrescription.getDoctor().getId());
-        response.setPatientId(savedPrescription.getPatient().getId());
-
-        return response;
+        return PrescriptionMapper.toDTO(saved);
     }
 
     @Override
     public List<PrescriptionDTO> getAllPrescriptions() {
 
-        List<Prescription> prescriptions = prescriptionRepository.findAll();
-
-        return prescriptions.stream().map(prescription -> {
-            PrescriptionDTO dto = new PrescriptionDTO();
-            dto.setId(prescription.getId());
-            dto.setMedicine(prescription.getMedicine());
-            dto.setDosage(prescription.getDosage());
-            dto.setNotes(prescription.getNotes());
-            dto.setDate(prescription.getDate());
-            dto.setDoctorId(prescription.getDoctor().getId());
-            dto.setPatientId(prescription.getPatient().getId());
-            return dto;
-        }).collect(Collectors.toList());
+        return prescriptionRepository.findAll()
+                .stream()
+                .map(PrescriptionMapper::toDTO)
+                .collect(Collectors.toList());
     }
 
     @Override
     public PrescriptionDTO getPrescriptionById(Long id) {
 
-        Prescription prescription = prescriptionRepository.findById(id).orElseThrow();
+        Prescription prescription = prescriptionRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Prescription not found"));
 
-        PrescriptionDTO dto = new PrescriptionDTO();
-        dto.setId(prescription.getId());
-        dto.setMedicine(prescription.getMedicine());
-        dto.setDosage(prescription.getDosage());
-        dto.setNotes(prescription.getNotes());
-        dto.setDate(prescription.getDate());
-        dto.setDoctorId(prescription.getDoctor().getId());
-        dto.setPatientId(prescription.getPatient().getId());
-
-        return dto;
+        return PrescriptionMapper.toDTO(prescription);
     }
 
     @Override
-    public PrescriptionDTO updatePrescription(Long id, PrescriptionDTO prescriptionDTO) {
+    public PrescriptionDTO updatePrescription(Long id, PrescriptionDTO dto) {
 
-        Prescription prescription = prescriptionRepository.findById(id).orElseThrow();
+        Prescription existing = prescriptionRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Prescription not found"));
 
-        Doctor doctor = doctorRepository.findById(prescriptionDTO.getDoctorId()).orElseThrow();
-        Patient patient = patientRepository.findById(prescriptionDTO.getPatientId()).orElseThrow();
+        existing.setMedicine(dto.getMedicine());
+        existing.setDosage(dto.getDosage());
+        existing.setNotes(dto.getNotes());
+        existing.setDate(dto.getDate());
 
-        prescription.setMedicine(prescriptionDTO.getMedicine());
-        prescription.setDosage(prescriptionDTO.getDosage());
-        prescription.setNotes(prescriptionDTO.getNotes());
-        prescription.setDate(prescriptionDTO.getDate());
-        prescription.setDoctor(doctor);
-        prescription.setPatient(patient);
+        Doctor doctor = doctorRepository.findById(dto.getDoctorId())
+                .orElseThrow(() -> new RuntimeException("Doctor not found"));
 
-        Prescription updated = prescriptionRepository.save(prescription);
+        Patient patient = patientRepository.findById(dto.getPatientId())
+                .orElseThrow(() -> new RuntimeException("Patient not found"));
 
-        PrescriptionDTO response = new PrescriptionDTO();
-        response.setId(updated.getId());
-        response.setMedicine(updated.getMedicine());
-        response.setDosage(updated.getDosage());
-        response.setNotes(updated.getNotes());
-        response.setDate(updated.getDate());
-        response.setDoctorId(updated.getDoctor().getId());
-        response.setPatientId(updated.getPatient().getId());
+        existing.setDoctor(doctor);
+        existing.setPatient(patient);
 
-        return response;
+        Prescription updated = prescriptionRepository.save(existing);
+
+        return PrescriptionMapper.toDTO(updated);
     }
 
     @Override
