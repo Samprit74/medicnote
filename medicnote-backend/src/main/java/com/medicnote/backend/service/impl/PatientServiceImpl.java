@@ -2,8 +2,10 @@ package com.medicnote.backend.service.impl;
 
 import com.medicnote.backend.dto.PatientDTO;
 import com.medicnote.backend.entity.Patient;
+import com.medicnote.backend.mapper.PatientMapper;
 import com.medicnote.backend.repository.PatientRepository;
 import com.medicnote.backend.service.PatientService;
+
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -21,69 +23,43 @@ public class PatientServiceImpl implements PatientService {
     @Override
     public PatientDTO savePatient(PatientDTO patientDTO) {
 
-        Patient patient = new Patient();
-        patient.setName(patientDTO.getName());
-        patient.setEmail(patientDTO.getEmail());
-        patient.setAge(patientDTO.getAge());
+        Patient patient = PatientMapper.toEntity(patientDTO);
+        Patient saved = patientRepository.save(patient);
 
-        Patient savedPatient = patientRepository.save(patient);
-
-        PatientDTO response = new PatientDTO();
-        response.setId(savedPatient.getId());
-        response.setName(savedPatient.getName());
-        response.setEmail(savedPatient.getEmail());
-        response.setAge(savedPatient.getAge());
-
-        return response;
+        return PatientMapper.toDTO(saved);
     }
 
     @Override
     public List<PatientDTO> getAllPatients() {
 
-        List<Patient> patients = patientRepository.findAll();
-
-        return patients.stream().map(patient -> {
-            PatientDTO dto = new PatientDTO();
-            dto.setId(patient.getId());
-            dto.setName(patient.getName());
-            dto.setEmail(patient.getEmail());
-            dto.setAge(patient.getAge());
-            return dto;
-        }).collect(Collectors.toList());
+        return patientRepository.findAll()
+                .stream()
+                .map(PatientMapper::toDTO)
+                .collect(Collectors.toList());
     }
 
     @Override
     public PatientDTO getPatientById(Long id) {
 
-        Patient patient = patientRepository.findById(id).orElseThrow();
+        Patient patient = patientRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Patient not found"));
 
-        PatientDTO dto = new PatientDTO();
-        dto.setId(patient.getId());
-        dto.setName(patient.getName());
-        dto.setEmail(patient.getEmail());
-        dto.setAge(patient.getAge());
-
-        return dto;
+        return PatientMapper.toDTO(patient);
     }
 
     @Override
     public PatientDTO updatePatient(Long id, PatientDTO patientDTO) {
 
-        Patient patient = patientRepository.findById(id).orElseThrow();
+        Patient existing = patientRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Patient not found"));
 
-        patient.setName(patientDTO.getName());
-        patient.setEmail(patientDTO.getEmail());
-        patient.setAge(patientDTO.getAge());
+        existing.setName(patientDTO.getName());
+        existing.setEmail(patientDTO.getEmail());
+        existing.setAge(patientDTO.getAge());
 
-        Patient updatedPatient = patientRepository.save(patient);
+        Patient updated = patientRepository.save(existing);
 
-        PatientDTO response = new PatientDTO();
-        response.setId(updatedPatient.getId());
-        response.setName(updatedPatient.getName());
-        response.setEmail(updatedPatient.getEmail());
-        response.setAge(updatedPatient.getAge());
-
-        return response;
+        return PatientMapper.toDTO(updated);
     }
 
     @Override
