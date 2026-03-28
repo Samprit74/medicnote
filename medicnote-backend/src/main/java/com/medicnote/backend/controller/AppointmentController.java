@@ -1,15 +1,27 @@
 package com.medicnote.backend.controller;
 
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import java.util.List;
 
-import com.medicnote.backend.dto.AppointmentDTO;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.medicnote.backend.dto.request.AppointmentRequestDTO;
+import com.medicnote.backend.dto.response.AppointmentResponseDTO;
+import com.medicnote.backend.security.service.CustomUserDetails;
 import com.medicnote.backend.service.AppointmentService;
 
 import jakarta.validation.Valid;
 
 @RestController
-@RequestMapping("/api/appointment")
+@RequestMapping("/api/appointments")
 public class AppointmentController {
 
     private final AppointmentService appointmentService;
@@ -19,22 +31,69 @@ public class AppointmentController {
     }
 
     @PostMapping
-    public ResponseEntity<String> Appointmentcreating(@Valid @RequestBody AppointmentDTO appointmentdto) {
-        return appointmentService.saveAppointment(appointmentdto);
+    @PreAuthorize("hasRole('PATIENT')")
+    public AppointmentResponseDTO bookAppointment(@Valid @RequestBody AppointmentRequestDTO request,
+                                                  Authentication auth) {
+
+        Long patientId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        return appointmentService.bookAppointment(request, patientId);
     }
 
-    @GetMapping("/{id}")
-    public AppointmentDTO GetAppointmentById(@PathVariable Long id) {
-        return appointmentService.GetAppoint(id);
+    @GetMapping("/doctor/me/queue")
+    @PreAuthorize("hasAnyRole('DOCTOR','ADMIN')")
+    public List<AppointmentResponseDTO> getDoctorQueue(Authentication auth) {
+
+        Long doctorId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        return appointmentService.getDoctorQueue(doctorId);
     }
 
-    @PutMapping("/{id}")
-    public AppointmentDTO updateAppoint(@PathVariable Long id, @Valid @RequestBody AppointmentDTO appointmentDTO) {
-        return appointmentService.update(id, appointmentDTO);
+    @GetMapping("/doctor/me")
+    @PreAuthorize("hasAnyRole('DOCTOR','ADMIN')")
+    public List<AppointmentResponseDTO> getAppointmentsByDoctor(Authentication auth) {
+
+        Long doctorId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        return appointmentService.getAppointmentsByDoctor(doctorId);
     }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<String> DeleteAppoint(@PathVariable Long id) {
-        return appointmentService.Delete(id);
+    @GetMapping("/patient/me")
+    @PreAuthorize("hasAnyRole('PATIENT','ADMIN')")
+    public List<AppointmentResponseDTO> getAppointmentsByPatient(Authentication auth) {
+
+        Long patientId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        return appointmentService.getAppointmentsByPatient(patientId);
+    }
+
+    @GetMapping("/patient/me/history")
+    @PreAuthorize("hasAnyRole('PATIENT','ADMIN')")
+    public List<AppointmentResponseDTO> getPatientHistory(Authentication auth) {
+
+        Long patientId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        return appointmentService.getPatientHistory(patientId);
+    }
+
+    @PutMapping("/{appointmentId}/status")
+    @PreAuthorize("hasAnyRole('DOCTOR','ADMIN')")
+    public AppointmentResponseDTO updateStatus(@PathVariable Long appointmentId,
+                                               @RequestParam String status,
+                                               Authentication auth) {
+
+        Long doctorId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        return appointmentService.updateStatus(appointmentId, status, doctorId);
+    }
+
+    @PutMapping("/{appointmentId}/cancel")
+    @PreAuthorize("hasAnyRole('PATIENT','ADMIN')")
+    public void cancelAppointment(@PathVariable Long appointmentId,
+                                 Authentication auth) {
+
+        Long patientId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        appointmentService.cancelAppointment(appointmentId, patientId);
+    }
+
+    @GetMapping("/doctor/{doctorId}/availability")
+    @PreAuthorize("hasAnyRole('PATIENT','ADMIN')")
+    public List<AppointmentResponseDTO> getAvailability(@PathVariable Long doctorId) {
+
+        return appointmentService.getAvailability(doctorId);
     }
 }

@@ -1,10 +1,14 @@
 package com.medicnote.backend.controller;
 
-import com.medicnote.backend.dto.PrescriptionDTO;
+import com.medicnote.backend.dto.request.PrescriptionRequestDTO;
+import com.medicnote.backend.dto.response.PrescriptionResponseDTO;
 import com.medicnote.backend.service.PrescriptionService;
+import com.medicnote.backend.security.service.CustomUserDetails;
 
 import jakarta.validation.Valid;
 
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -13,35 +17,58 @@ import java.util.List;
 @RequestMapping("/api/prescriptions")
 public class PrescriptionController {
 
-    private final PrescriptionService prescriptionService;
+    private final PrescriptionService service;
 
-    public PrescriptionController(PrescriptionService prescriptionService) {
-        this.prescriptionService = prescriptionService;
+    public PrescriptionController(PrescriptionService service) {
+        this.service = service;
     }
 
     @PostMapping
-    public PrescriptionDTO createPrescription(@Valid @RequestBody PrescriptionDTO prescriptionDTO) {
-        return prescriptionService.savePrescription(prescriptionDTO);
+    @PreAuthorize("hasRole('DOCTOR')")
+    public PrescriptionResponseDTO create(@Valid @RequestBody PrescriptionRequestDTO request,
+                                          Authentication auth) {
+        Long doctorId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        return service.create(request, doctorId);
     }
 
-    @GetMapping
-    public List<PrescriptionDTO> getAllPrescriptions() {
-        return prescriptionService.getAllPrescriptions();
+    @GetMapping("/patient/me")
+    @PreAuthorize("hasAnyRole('PATIENT','ADMIN')")
+    public List<PrescriptionResponseDTO> getByPatient(Authentication auth) {
+        Long patientId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        return service.getByPatient(patientId);
+    }
+
+    @GetMapping("/doctor/me")
+    @PreAuthorize("hasAnyRole('DOCTOR','ADMIN')")
+    public List<PrescriptionResponseDTO> getByDoctor(Authentication auth) {
+        Long doctorId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        return service.getByDoctor(doctorId);
     }
 
     @GetMapping("/{id}")
-    public PrescriptionDTO getPrescriptionById(@PathVariable Long id) {
-        return prescriptionService.getPrescriptionById(id);
+    @PreAuthorize("hasAnyRole('PATIENT','DOCTOR','ADMIN')")
+    public PrescriptionResponseDTO getById(@PathVariable Long id) {
+        return service.getById(id);
     }
 
-    @PutMapping("/{id}")
-    public PrescriptionDTO updatePrescription(@PathVariable Long id,
-                                              @Valid @RequestBody PrescriptionDTO prescriptionDTO) {
-        return prescriptionService.updatePrescription(id, prescriptionDTO);
+    @GetMapping("/patient/me/range")
+    @PreAuthorize("hasAnyRole('PATIENT','ADMIN')")
+    public List<PrescriptionResponseDTO> getByDateRange(
+            Authentication auth,
+            @RequestParam String start,
+            @RequestParam String end) {
+
+        Long patientId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        return service.getByPatientAndDateRange(patientId, start, end);
     }
 
-    @DeleteMapping("/{id}")
-    public void deletePrescription(@PathVariable Long id) {
-        prescriptionService.deletePrescription(id);
+    @GetMapping("/doctor/me/patient/{patientId}")
+    @PreAuthorize("hasAnyRole('DOCTOR','ADMIN')")
+    public List<PrescriptionResponseDTO> getDoctorPatientPrescriptions(
+            Authentication auth,
+            @PathVariable Long patientId) {
+
+        Long doctorId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        return service.getDoctorPatientPrescriptions(doctorId, patientId);
     }
 }

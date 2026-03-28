@@ -1,17 +1,22 @@
 package com.medicnote.backend.service;
 
-import com.medicnote.backend.dto.PrescriptionDTO;
+import com.medicnote.backend.dto.request.PrescriptionRequestDTO;
+import com.medicnote.backend.dto.response.PrescriptionResponseDTO;
+
 import java.util.List;
 
 public interface PrescriptionService {
 
-    PrescriptionDTO savePrescription(PrescriptionDTO prescriptionDTO);
+    
+    PrescriptionResponseDTO create(PrescriptionRequestDTO request, Long doctorId);
 
-    List<PrescriptionDTO> getAllPrescriptions();
+    List<PrescriptionResponseDTO> getByPatient(Long patientId);
 
-    PrescriptionDTO getPrescriptionById(Long id);
+    List<PrescriptionResponseDTO> getByDoctor(Long doctorId);
 
-    PrescriptionDTO updatePrescription(Long id, PrescriptionDTO prescriptionDTO);
+    PrescriptionResponseDTO getById(Long id);
 
-    void deletePrescription(Long id);
+    List<PrescriptionResponseDTO> getByPatientAndDateRange(Long patientId, String start, String end);
+
+    List<PrescriptionResponseDTO> getDoctorPatientPrescriptions(Long doctorId, Long patientId);
 }

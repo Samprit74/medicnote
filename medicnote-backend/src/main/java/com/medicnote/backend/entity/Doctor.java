@@ -1,6 +1,10 @@
 package com.medicnote.backend.entity;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+
 import java.util.List;
 
 @Entity
@@ -11,29 +15,27 @@ public class Doctor {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @NotBlank(message = "Name is required")
     private String name;
 
+    @Email(message = "Invalid email")
+    @NotBlank(message = "Email is required")
+    @Column(unique = true)
     private String email;
 
+    @NotBlank(message = "Specialization is required")
     private String specialization;
+
+    @Min(value = 0, message = "Experience must be positive")
+    private Integer experience;
+
+    @OneToMany(mappedBy = "doctor", cascade = CascadeType.ALL)
+    private List<Appointment> appointments;
 
     @OneToMany(mappedBy = "doctor", cascade = CascadeType.ALL)
     private List<Prescription> prescriptions;
 
-    @OneToMany(mappedBy = "doctor", cascade = CascadeType.ALL)
-    private List<Appointment> appointment;
-    
-    
-    
-    public Doctor() {
-    }
-
-    public Doctor(Long id, String name, String email, String specialization) {
-        this.id = id;
-        this.name = name;
-        this.email = email;
-        this.specialization = specialization;
-    }
+    public Doctor() {}
 
     public Long getId() {
         return id;
@@ -65,6 +67,22 @@ public class Doctor {
 
     public void setSpecialization(String specialization) {
         this.specialization = specialization;
+    }
+
+    public Integer getExperience() {
+        return experience;
+    }
+
+    public void setExperience(Integer experience) {
+        this.experience = experience;
+    }
+
+    public List<Appointment> getAppointments() {
+        return appointments;
+    }
+
+    public void setAppointments(List<Appointment> appointments) {
+        this.appointments = appointments;
     }
 
     public List<Prescription> getPrescriptions() {

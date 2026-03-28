@@ -20,7 +20,7 @@ public class MedicnoteBackendApplication {
 
     public static void main(String[] args) {
         SpringApplication.run(MedicnoteBackendApplication.class, args);
-    }
+        System.out.println("project is on main method");    }
 
     @EventListener(ApplicationReadyEvent.class)
     public void displayStartupInfo() {

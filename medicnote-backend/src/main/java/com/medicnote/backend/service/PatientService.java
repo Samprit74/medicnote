@@ -1,17 +1,19 @@
 package com.medicnote.backend.service;
 
-import com.medicnote.backend.dto.PatientDTO;
+import com.medicnote.backend.dto.request.PatientRequestDTO;
+import com.medicnote.backend.dto.response.PatientResponseDTO;
+
 import java.util.List;
 
 public interface PatientService {
 
-    PatientDTO savePatient(PatientDTO patientDTO);
+    PatientResponseDTO getById(Long id);
 
-    List<PatientDTO> getAllPatients();
+    PatientResponseDTO update(Long id, PatientRequestDTO request);
 
-    PatientDTO getPatientById(Long id);
+    List<PatientResponseDTO> getAll();
 
-    PatientDTO updatePatient(Long id, PatientDTO patientDTO);
+    void delete(Long id);
 
-    void deletePatient(Long id);
+    List<PatientResponseDTO> getPatientsByDoctor(Long doctorId);
 }
