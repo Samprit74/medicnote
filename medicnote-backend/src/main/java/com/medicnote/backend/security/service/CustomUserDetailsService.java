@@ -1,8 +1,11 @@
 package com.medicnote.backend.security.service;
 
-import com.medicnote.backend.repository.UserRepository;
-import org.springframework.security.core.userdetails.*;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
+
+import com.medicnote.backend.repository.UserRepository;
 
 @Service
 public class CustomUserDetailsService implements UserDetailsService {
@@ -19,11 +22,11 @@ public class CustomUserDetailsService implements UserDetailsService {
         var user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found"));
 
-        // ✅ return custom user with ID
         return new CustomUserDetails(
                 user.getId(),
                 user.getEmail(),
                 user.getPassword(),
-                user.getAuthorities());
+                user.getAuthorities()
+        );
     }
 }

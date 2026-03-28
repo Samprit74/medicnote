@@ -1,8 +1,5 @@
 package com.medicnote.backend.security.config;
 
-import com.medicnote.backend.security.jwt.JwtFilter;
-import com.medicnote.backend.security.service.CustomUserDetailsService;
-
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -15,6 +12,11 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+import com.medicnote.backend.security.jwt.JwtFilter;
+import com.medicnote.backend.security.service.CustomUserDetailsService;
+
+import jakarta.servlet.http.HttpServletResponse;
 
 @Configuration
 @EnableMethodSecurity
@@ -38,9 +40,18 @@ public class SecurityConfig {
                     .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             )
             .authorizeHttpRequests(auth -> auth
-                    .requestMatchers("/auth/**").permitAll()
-                    .requestMatchers("/error").permitAll()
+                    .requestMatchers(
+                            "/auth/**",
+                            "/error",
+                            "/v3/api-docs/**",
+                            "/swagger-ui/**",
+                            "/swagger-ui.html"
+                    ).permitAll()
                     .anyRequest().authenticated()
+            )
+            .exceptionHandling(ex -> ex
+                    .authenticationEntryPoint((req, res, exx) ->
+                            res.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized"))
             )
             .authenticationProvider(authenticationProvider())
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
@@ -51,8 +62,9 @@ public class SecurityConfig {
     @Bean
     public DaoAuthenticationProvider authenticationProvider() {
 
+        
         DaoAuthenticationProvider provider =
-                new DaoAuthenticationProvider(userDetailsService); // ✅ FIX
+                new DaoAuthenticationProvider(userDetailsService);
 
         provider.setPasswordEncoder(passwordEncoder());
 
