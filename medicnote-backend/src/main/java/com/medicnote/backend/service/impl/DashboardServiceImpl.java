@@ -6,6 +6,7 @@ import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import com.medicnote.backend.dto.dashboard.DoctorDashboardDTO;
@@ -52,27 +53,29 @@ public class DashboardServiceImpl implements DashboardService {
 
         LocalDate today = LocalDate.now();
 
-        long totalPatients = appointmentRepository.findByDoctorId(doctorId)
-                .stream()
-                .map(a -> a.getPatient().getId())
-                .distinct()
-                .count();
+        long totalPatients = appointmentRepository.countDistinctPatientsByDoctor(doctorId);
 
         long todayAppointments = appointmentRepository
-                .countByDoctorIdAndAppointmentDateAndStatusNot(doctorId, today, AppointmentStatus.CANCELLED);
+                .countByDoctorIdAndAppointmentDateAndStatusNot(
+                        doctorId,
+                        today,
+                        AppointmentStatus.CANCELLED
+                );
 
         long completedAppointments = appointmentRepository
-                .findByDoctorIdAndAppointmentDateAndStatus(
+                .countByDoctorIdAndAppointmentDateAndStatus(
                         doctorId,
                         today,
                         AppointmentStatus.COMPLETED
-                ).size();
+                );
 
         List<NextAppointmentDTO> nextAppointments = appointmentRepository
-                .findByDoctorIdAndAppointmentDateOrderByQueueNumberAsc(doctorId, today)
+                .findTop2ByDoctorIdAndAppointmentDateAndStatusOrderByQueueNumberAsc(
+                        doctorId,
+                        today,
+                        AppointmentStatus.PENDING
+                )
                 .stream()
-                .filter(a -> a.getStatus() == AppointmentStatus.PENDING)
-                .limit(2)
                 .map(a -> {
                     NextAppointmentDTO dto = new NextAppointmentDTO();
                     dto.setPatientName(a.getPatient().getName());
@@ -100,19 +103,19 @@ public class DashboardServiceImpl implements DashboardService {
         Patient patient = patientRepository.findById(patientId)
                 .orElseThrow(() -> new ResourceNotFoundException("Patient not found"));
 
-        long totalAppointments = appointmentRepository.findByPatientId(patientId).size();
+        long totalAppointments = appointmentRepository.countByPatientId(patientId);
 
         long totalPrescriptions = prescriptionRepository
-                .findByPatientIdOrderByDateDesc(patientId)
-                .size();
+                .findByPatientIdOrderByDateDesc(patientId, PageRequest.of(0, 1))
+                .getTotalElements();
 
         List<UpcomingAppointmentDTO> upcomingAppointments = appointmentRepository
-                .findByPatientId(patientId)
+                .findTop3ByPatientIdAndAppointmentDateAfterAndStatusOrderByAppointmentDateAsc(
+                        patientId,
+                        LocalDate.now(),
+                        AppointmentStatus.PENDING
+                )
                 .stream()
-                .filter(a -> a.getAppointmentDate().isAfter(LocalDate.now())
-                        && a.getStatus() == AppointmentStatus.PENDING)
-                .sorted((a, b) -> a.getAppointmentDate().compareTo(b.getAppointmentDate()))
-                .limit(3)
                 .map(a -> {
                     UpcomingAppointmentDTO dto = new UpcomingAppointmentDTO();
                     dto.setDoctorName(a.getDoctor().getName());

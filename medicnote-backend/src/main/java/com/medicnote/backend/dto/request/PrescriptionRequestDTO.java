@@ -1,6 +1,7 @@
 package com.medicnote.backend.dto.request;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 
 import java.time.LocalDate;
@@ -19,49 +20,23 @@ public class PrescriptionRequestDTO {
     private String notes;
 
     @Valid
-    @NotNull
+    @NotEmpty
     private List<PrescriptionItemRequestDTO> items;
 
-    public PrescriptionRequestDTO() {
-    }
+    public PrescriptionRequestDTO() {}
 
-    public Long getPatientId() {
-        return patientId;
-    }
+    public Long getPatientId() { return patientId; }
+    public void setPatientId(Long patientId) { this.patientId = patientId; }
 
-    public void setPatientId(Long patientId) {
-        this.patientId = patientId;
-    }
+    public LocalDate getDate() { return date; }
+    public void setDate(LocalDate date) { this.date = date; }
 
-    public LocalDate getDate() {
-        return date;
-    }
+    public String getDiagnosis() { return diagnosis; }
+    public void setDiagnosis(String diagnosis) { this.diagnosis = diagnosis; }
 
-    public void setDate(LocalDate date) {
-        this.date = date;
-    }
+    public String getNotes() { return notes; }
+    public void setNotes(String notes) { this.notes = notes; }
 
-    public String getDiagnosis() {
-        return diagnosis;
-    }
-
-    public void setDiagnosis(String diagnosis) {
-        this.diagnosis = diagnosis;
-    }
-
-    public String getNotes() {
-        return notes;
-    }
-
-    public void setNotes(String notes) {
-        this.notes = notes;
-    }
-
-    public List<PrescriptionItemRequestDTO> getItems() {
-        return items;
-    }
-
-    public void setItems(List<PrescriptionItemRequestDTO> items) {
-        this.items = items;
-    }
+    public List<PrescriptionItemRequestDTO> getItems() { return items; }
+    public void setItems(List<PrescriptionItemRequestDTO> items) { this.items = items; }
 }

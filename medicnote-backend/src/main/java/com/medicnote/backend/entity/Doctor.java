@@ -8,7 +8,10 @@ import jakarta.validation.constraints.NotBlank;
 import java.util.List;
 
 @Entity
-@Table(name = "doctors")
+@Table(name = "doctors", indexes = {
+        @Index(name = "idx_doctor_specialization", columnList = "specialization"),
+        @Index(name = "idx_doctor_experience", columnList = "experience")
+})
 public class Doctor {
 
     @Id

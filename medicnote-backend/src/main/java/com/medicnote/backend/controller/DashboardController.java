@@ -1,13 +1,16 @@
 package com.medicnote.backend.controller;
 
-import com.medicnote.backend.dto.dashboard.DoctorDashboardDTO;
-import com.medicnote.backend.dto.dashboard.PatientDashboardDTO;
-import com.medicnote.backend.service.DashboardService;
-import com.medicnote.backend.security.service.CustomUserDetails;
-
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.medicnote.backend.dto.dashboard.DoctorDashboardDTO;
+import com.medicnote.backend.dto.dashboard.PatientDashboardDTO;
+import com.medicnote.backend.security.service.CustomUserDetails;
+import com.medicnote.backend.service.DashboardService;
 
 @RestController
 @RequestMapping("/api/dashboard")
@@ -21,15 +24,15 @@ public class DashboardController {
 
     @GetMapping("/doctor/me")
     @PreAuthorize("hasAnyRole('DOCTOR','ADMIN')")
-    public DoctorDashboardDTO getDoctorDashboard(Authentication auth) {
+    public ResponseEntity<DoctorDashboardDTO> getDoctorDashboard(Authentication auth) {
         Long doctorId = ((CustomUserDetails) auth.getPrincipal()).getId();
-        return dashboardService.getDoctorDashboard(doctorId);
+        return ResponseEntity.ok(dashboardService.getDoctorDashboard(doctorId));
     }
 
     @GetMapping("/patient/me")
     @PreAuthorize("hasAnyRole('PATIENT','ADMIN')")
-    public PatientDashboardDTO getPatientDashboard(Authentication auth) {
+    public ResponseEntity<PatientDashboardDTO> getPatientDashboard(Authentication auth) {
         Long patientId = ((CustomUserDetails) auth.getPrincipal()).getId();
-        return dashboardService.getPatientDashboard(patientId);
+        return ResponseEntity.ok(dashboardService.getPatientDashboard(patientId));
     }
 }

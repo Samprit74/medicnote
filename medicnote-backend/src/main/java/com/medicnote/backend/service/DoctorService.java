@@ -3,6 +3,8 @@ package com.medicnote.backend.service;
 import com.medicnote.backend.dto.request.DoctorRequestDTO;
 import com.medicnote.backend.dto.response.DoctorResponseDTO;
 
+import org.springframework.data.domain.Page;
+
 import java.util.List;
 
 public interface DoctorService {
@@ -22,4 +24,8 @@ public interface DoctorService {
     List<DoctorResponseDTO> searchBySpecializationAndExperience(String specialization, Integer experience);
 
     List<DoctorResponseDTO> searchByExperience(Integer experience);
+
+    List<DoctorResponseDTO> searchBySpecializationSorted(String specialization);
+
+    Page<DoctorResponseDTO> searchDoctorsPaginated(String specialization, Integer experience, int page, int size);
 }
