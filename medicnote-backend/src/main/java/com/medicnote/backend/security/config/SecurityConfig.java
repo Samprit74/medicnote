@@ -26,7 +26,7 @@ public class SecurityConfig {
     private final CustomUserDetailsService userDetailsService;
 
     public SecurityConfig(JwtFilter jwtFilter,
-                          CustomUserDetailsService userDetailsService) {
+            CustomUserDetailsService userDetailsService) {
         this.jwtFilter = jwtFilter;
         this.userDetailsService = userDetailsService;
     }
@@ -35,26 +35,23 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
         http
-            .csrf(csrf -> csrf.disable())
-            .sessionManagement(session -> session
-                    .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-            )
-            .authorizeHttpRequests(auth -> auth
-                    .requestMatchers(
-                            "/auth/**",
-                            "/error",
-                            "/v3/api-docs/**",
-                            "/swagger-ui/**",
-                            "/swagger-ui.html"
-                    ).permitAll()
-                    .anyRequest().authenticated()
-            )
-            .exceptionHandling(ex -> ex
-                    .authenticationEntryPoint((req, res, exx) ->
-                            res.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized"))
-            )
-            .authenticationProvider(authenticationProvider())
-            .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+                .csrf(csrf -> csrf.disable())
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(
+                                "/auth/**",
+                                "/error",
+                                "/v3/api-docs/**",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html")
+                        .permitAll()
+                        .anyRequest().authenticated())
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(
+                                (req, res, exx) -> res.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized")))
+                .authenticationProvider(authenticationProvider())
+                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
@@ -62,10 +59,8 @@ public class SecurityConfig {
     @Bean
     public DaoAuthenticationProvider authenticationProvider() {
 
-        
-        DaoAuthenticationProvider provider =
-                new DaoAuthenticationProvider(userDetailsService);
-
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        provider.setUserDetailsService(userDetailsService);
         provider.setPasswordEncoder(passwordEncoder());
 
         return provider;

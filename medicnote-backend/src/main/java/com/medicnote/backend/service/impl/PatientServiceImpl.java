@@ -98,7 +98,7 @@ public class PatientServiceImpl implements PatientService {
 
         logger.info("Fetching patients for doctor {}", doctorId);
 
-        return repository.findDistinctByAppointmentDoctorId(doctorId)
+        return repository.findDistinctByAppointmentsDoctorId(doctorId)
                 .stream()
                 .map(mapper::toDTO)
                 .collect(Collectors.toList());

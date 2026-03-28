@@ -64,7 +64,8 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
             AppointmentStatus status
     );
 
-    long countDistinctPatientsByDoctor(Long doctorId);
+    // ✅ FIXED METHOD
+    long countDistinctPatientIdByDoctor_Id(Long doctorId);
 
     long countByPatientId(Long patientId);
 
