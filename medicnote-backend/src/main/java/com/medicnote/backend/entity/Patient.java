@@ -27,7 +27,7 @@ public class Patient {
     private List<Prescription> prescriptions;
 
     @OneToMany(mappedBy = "patient", cascade = CascadeType.ALL)
-    private List<Appointment> appointment;
+    private List<Appointment> appointments;
 
     public Patient() {}
 
@@ -55,6 +55,6 @@ public class Patient {
     public List<Prescription> getPrescriptions() { return prescriptions; }
     public void setPrescriptions(List<Prescription> prescriptions) { this.prescriptions = prescriptions; }
 
-    public List<Appointment> getAppointment() { return appointment; }
-    public void setAppointment(List<Appointment> appointment) { this.appointment = appointment; }
+    public List<Appointment> getAppointments() { return appointments; }
+    public void setAppointments(List<Appointment> appointments) { this.appointments = appointments; }
 }

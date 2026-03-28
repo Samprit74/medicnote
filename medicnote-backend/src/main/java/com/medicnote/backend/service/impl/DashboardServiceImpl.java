@@ -53,7 +53,7 @@ public class DashboardServiceImpl implements DashboardService {
 
         LocalDate today = LocalDate.now();
 
-        long totalPatients = appointmentRepository.countDistinctPatientsByDoctor(doctorId);
+        long totalPatients = appointmentRepository.countDistinctPatientIdByDoctor_Id(doctorId);
 
         long todayAppointments = appointmentRepository
                 .countByDoctorIdAndAppointmentDateAndStatusNot(

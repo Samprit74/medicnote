@@ -14,7 +14,7 @@ import java.util.List;
 @Repository
 public interface PatientRepository extends JpaRepository<Patient, Long> {
 
-    List<Patient> findDistinctByAppointmentDoctorId(Long doctorId);
+    List<Patient> findDistinctByAppointmentsDoctorId(Long doctorId);
 
     @Query("""
         SELECT DISTINCT p FROM Patient p
