@@ -1,105 +1,107 @@
 package com.medicnote.backend.entity;
 
+import jakarta.persistence.*;
+import jakarta.validation.constraints.NotNull;
+
 import java.time.LocalDate;
 import java.time.LocalTime;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
-
 @Entity
-@Table(name = "Appointment")
+@Table(
+    name = "appointments",
+    uniqueConstraints = {
+
+        //  Prevent duplicate queue (same doctor + same date)
+        @UniqueConstraint(
+            name = "uq_doctor_date_queue",
+            columnNames = {"doctor_id", "appointmentDate", "queueNumber"}
+        ),
+
+        //  Prevent duplicate time slot
+        @UniqueConstraint(
+            name = "uq_doctor_date_time",
+            columnNames = {"doctor_id", "appointmentDate", "appointmentTime"}
+        )
+    }
+)
 public class Appointment {
-	    @Id
-	    @GeneratedValue(strategy = GenerationType.IDENTITY)
-	    private Long id;
 
-	    private LocalDate appointmentDate;
-	    private LocalTime appointmentTime;
-	    private String status;
-	    private String reason;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-	    @ManyToOne
-	    private Patient patient;
+    @NotNull(message = "Appointment date is required")
+    private LocalDate appointmentDate;
 
-	    @ManyToOne
-	    private Doctor doctor;
+    @NotNull(message = "Appointment time is required")
+    private LocalTime appointmentTime;
 
-		public Appointment() {
-			super();
-			// TODO Auto-generated constructor stub
-		}
+    @NotNull
+    private Integer queueNumber;
 
-		public Long getId() {
-			return id;
-		}
+    @NotNull
+    @Enumerated(EnumType.STRING)
+    private AppointmentStatus status;
 
-		public void setId(Long id) {
-			this.id = id;
-		}
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "doctor_id", nullable = false)
+    private Doctor doctor;
 
-		public LocalDate getAppointmentDate() {
-			return appointmentDate;
-		}
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "patient_id", nullable = false)
+    private Patient patient;
 
-		public void setAppointmentDate(LocalDate appointmentDate) {
-			this.appointmentDate = appointmentDate;
-		}
+    public Appointment() {}
 
-		public LocalTime getAppointmentTime() {
-			return appointmentTime;
-		}
+    public Long getId() {
+        return id;
+    }
 
-		public void setAppointmentTime(LocalTime appointmentTime) {
-			this.appointmentTime = appointmentTime;
-		}
+    public LocalDate getAppointmentDate() {
+        return appointmentDate;
+    }
 
-		public String getStatus() {
-			return status;
-		}
+    public void setAppointmentDate(LocalDate appointmentDate) {
+        this.appointmentDate = appointmentDate;
+    }
 
-		public void setStatus(String status) {
-			this.status = status;
-		}
+    public LocalTime getAppointmentTime() {
+        return appointmentTime;
+    }
 
-		public String getReason() {
-			return reason;
-		}
+    public void setAppointmentTime(LocalTime appointmentTime) {
+        this.appointmentTime = appointmentTime;
+    }
 
-		public void setReason(String reason) {
-			this.reason = reason;
-		}
+    public Integer getQueueNumber() {
+        return queueNumber;
+    }
 
-		public Patient getPatient() {
-			return patient;
-		}
+    public void setQueueNumber(Integer queueNumber) {
+        this.queueNumber = queueNumber;
+    }
 
-		public void setPatient(Patient patient) {
-			this.patient = patient;
-		}
+    public AppointmentStatus getStatus() {
+        return status;
+    }
 
-		public Doctor getDoctor() {
-			return doctor;
-		}
+    public void setStatus(AppointmentStatus status) {
+        this.status = status;
+    }
 
-		public void setDoctor(Doctor doctor) {
-			this.doctor = doctor;
-		}
+    public Doctor getDoctor() {
+        return doctor;
+    }
 
-		public Appointment(Long id, LocalDate appointmentDate, LocalTime appointmentTime, String status, String reason,
-				Patient patient, Doctor doctor) {
-			super();
-			this.id = id;
-			this.appointmentDate = appointmentDate;
-			this.appointmentTime = appointmentTime;
-			this.status = status;
-			this.reason = reason;
-			this.patient = patient;
-			this.doctor = doctor;
-		}
-	    
-	    
+    public void setDoctor(Doctor doctor) {
+        this.doctor = doctor;
+    }
+
+    public Patient getPatient() {
+        return patient;
+    }
+
+    public void setPatient(Patient patient) {
+        this.patient = patient;
+    }
 }

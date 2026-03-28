@@ -1,31 +1,16 @@
 package com.medicnote.backend.mapper;
 
-import com.medicnote.backend.dto.DoctorDTO;
+import com.medicnote.backend.dto.request.DoctorRequestDTO;
+import com.medicnote.backend.dto.response.DoctorResponseDTO;
 import com.medicnote.backend.entity.Doctor;
 
-public class DoctorMapper {
+import org.mapstruct.Mapper;
+import org.mapstruct.Mapping;
 
-    public static DoctorDTO toDTO(Doctor doctor) {
-        if (doctor == null) return null;
+@Mapper(componentModel = "spring")
+public interface DoctorMapper {
 
-        DoctorDTO dto = new DoctorDTO();
-        dto.setId(doctor.getId());
-        dto.setName(doctor.getName());
-        dto.setEmail(doctor.getEmail());
-        dto.setSpecialization(doctor.getSpecialization());
+    Doctor toEntity(DoctorRequestDTO dto);
 
-        return dto;
-    }
-
-    public static Doctor toEntity(DoctorDTO dto) {
-        if (dto == null) return null;
-
-        Doctor doctor = new Doctor();
-        doctor.setId(dto.getId());
-        doctor.setName(dto.getName());
-        doctor.setEmail(dto.getEmail());
-        doctor.setSpecialization(dto.getSpecialization());
-
-        return doctor;
-    }
+    DoctorResponseDTO toDTO(Doctor doctor);
 }

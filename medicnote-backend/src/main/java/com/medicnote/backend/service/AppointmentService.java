@@ -1,17 +1,25 @@
 package com.medicnote.backend.service;
 
-import org.springframework.http.ResponseEntity;
+import java.util.List;
 
-import com.medicnote.backend.dto.AppointmentDTO;
-import com.medicnote.backend.entity.Appointment;
+import com.medicnote.backend.dto.request.AppointmentRequestDTO;
+import com.medicnote.backend.dto.response.AppointmentResponseDTO;
 
 public interface AppointmentService {
 
-	ResponseEntity<String> saveAppointment(AppointmentDTO appointmentdto);
+    AppointmentResponseDTO bookAppointment(AppointmentRequestDTO request, Long patientId);
 
-	AppointmentDTO GetAppoint(Long id);
+    List<AppointmentResponseDTO> getDoctorQueue(Long doctorId);
 
-	AppointmentDTO update(Long id, AppointmentDTO appointmentDTO);
+    List<AppointmentResponseDTO> getAppointmentsByDoctor(Long doctorId);
 
-	ResponseEntity<String> Delete(Long id);
+    List<AppointmentResponseDTO> getAppointmentsByPatient(Long patientId);
+
+    List<AppointmentResponseDTO> getPatientHistory(Long patientId);
+
+    AppointmentResponseDTO updateStatus(Long appointmentId, String status, Long doctorId);
+
+    void cancelAppointment(Long appointmentId, Long patientId);
+
+    List<AppointmentResponseDTO> getAvailability(Long doctorId);
 }
