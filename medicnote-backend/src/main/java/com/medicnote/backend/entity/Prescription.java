@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
 @Entity
@@ -30,9 +31,14 @@ public class Prescription {
     private Patient patient;
 
     @OneToMany(mappedBy = "prescription", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<PrescriptionItem> items;
+    private List<PrescriptionItem> items = new ArrayList<>();
 
     public Prescription() {}
+
+    public void addItem(PrescriptionItem item) {
+        items.add(item);
+        item.setPrescription(this);
+    }
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }

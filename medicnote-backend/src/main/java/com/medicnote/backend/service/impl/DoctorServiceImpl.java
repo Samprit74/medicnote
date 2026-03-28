@@ -10,6 +10,8 @@ import com.medicnote.backend.service.DoctorService;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -35,7 +37,7 @@ public class DoctorServiceImpl implements DoctorService {
         logger.info("Creating doctor with email: {}", request.getEmail());
 
         if (doctorRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Doctor with this email already exists");
+            throw new IllegalArgumentException("Doctor with this email already exists");
         }
 
         Doctor doctor = doctorMapper.toEntity(request);
@@ -73,6 +75,11 @@ public class DoctorServiceImpl implements DoctorService {
 
         Doctor existing = doctorRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Doctor not found"));
+
+        if (!existing.getEmail().equals(request.getEmail())
+                && doctorRepository.existsByEmail(request.getEmail())) {
+            throw new IllegalArgumentException("Email already in use");
+        }
 
         existing.setName(request.getName());
         existing.setEmail(request.getEmail());
@@ -128,5 +135,46 @@ public class DoctorServiceImpl implements DoctorService {
                 .stream()
                 .map(doctorMapper::toDTO)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<DoctorResponseDTO> searchBySpecializationSorted(String specialization) {
+
+        logger.info("Searching doctors by specialization sorted: {}", specialization);
+
+        return doctorRepository
+                .findBySpecializationIgnoreCaseOrderByExperienceDesc(specialization)
+                .stream()
+                .map(doctorMapper::toDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public Page<DoctorResponseDTO> searchDoctorsPaginated(String specialization, Integer experience, int page, int size) {
+
+        logger.info("Searching doctors paginated: specialization={}, experience={}, page={}, size={}",
+                specialization, experience, page, size);
+
+        PageRequest pageable = PageRequest.of(page, size);
+
+        if (specialization != null && experience != null) {
+            return doctorRepository
+                    .findBySpecializationIgnoreCaseAndExperienceGreaterThanEqual(specialization, experience, pageable)
+                    .map(doctorMapper::toDTO);
+        }
+
+        if (specialization != null) {
+            return doctorRepository
+                    .findBySpecializationIgnoreCase(specialization, pageable)
+                    .map(doctorMapper::toDTO);
+        }
+
+        if (experience != null) {
+            return doctorRepository
+                    .findByExperienceGreaterThanEqual(experience, pageable)
+                    .map(doctorMapper::toDTO);
+        }
+
+        return doctorRepository.findAll(pageable).map(doctorMapper::toDTO);
     }
 }

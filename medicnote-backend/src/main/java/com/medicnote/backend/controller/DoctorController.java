@@ -2,11 +2,12 @@ package com.medicnote.backend.controller;
 
 import com.medicnote.backend.dto.request.DoctorRequestDTO;
 import com.medicnote.backend.dto.response.DoctorResponseDTO;
-import com.medicnote.backend.service.DoctorService;
 import com.medicnote.backend.security.service.CustomUserDetails;
+import com.medicnote.backend.service.DoctorService;
 
 import jakarta.validation.Valid;
 
+import org.springframework.data.domain.Page;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -42,7 +43,6 @@ public class DoctorController {
         return doctorService.getAllDoctors();
     }
 
-    // ✅ FIXED: allow doctor to update own profile
     @PutMapping("/me")
     @PreAuthorize("hasAnyRole('ADMIN','DOCTOR')")
     public DoctorResponseDTO updateDoctor(Authentication auth,
@@ -51,7 +51,6 @@ public class DoctorController {
         return doctorService.updateDoctor(id, request);
     }
 
-    // ✅ ADMIN can update any doctor
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public DoctorResponseDTO updateDoctorByAdmin(@PathVariable Long id,
@@ -84,5 +83,16 @@ public class DoctorController {
         }
 
         return doctorService.getAllDoctors();
+    }
+
+    @GetMapping("/search-paginated")
+    @PreAuthorize("hasAnyRole('ADMIN','PATIENT')")
+    public Page<DoctorResponseDTO> searchDoctorsPaginated(
+            @RequestParam(required = false) String specialization,
+            @RequestParam(required = false) Integer experience,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "7") int size) {
+
+        return doctorService.searchDoctorsPaginated(specialization, experience, page, size);
     }
 }
