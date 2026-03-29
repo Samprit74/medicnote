@@ -26,7 +26,7 @@ public class DoctorServiceImpl implements DoctorService {
     private final DoctorMapper doctorMapper;
 
     public DoctorServiceImpl(DoctorRepository doctorRepository,
-                             DoctorMapper doctorMapper) {
+            DoctorMapper doctorMapper) {
         this.doctorRepository = doctorRepository;
         this.doctorMapper = doctorMapper;
     }
@@ -52,6 +52,17 @@ public class DoctorServiceImpl implements DoctorService {
         logger.info("Fetching doctor with id: {}", id);
 
         Doctor doctor = doctorRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Doctor not found"));
+
+        return doctorMapper.toDTO(doctor);
+    }
+
+    @Override
+    public DoctorResponseDTO getDoctorByEmail(String email) {
+
+        logger.info("Fetching doctor with email: {}", email);
+
+        Doctor doctor = doctorRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("Doctor not found"));
 
         return doctorMapper.toDTO(doctor);
@@ -150,7 +161,8 @@ public class DoctorServiceImpl implements DoctorService {
     }
 
     @Override
-    public Page<DoctorResponseDTO> searchDoctorsPaginated(String specialization, Integer experience, int page, int size) {
+    public Page<DoctorResponseDTO> searchDoctorsPaginated(String specialization, Integer experience, int page,
+            int size) {
 
         logger.info("Searching doctors paginated: specialization={}, experience={}, page={}, size={}",
                 specialization, experience, page, size);

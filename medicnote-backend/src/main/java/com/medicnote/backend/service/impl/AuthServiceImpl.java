@@ -64,9 +64,21 @@ public class AuthServiceImpl implements AuthService {
         userRepository.save(user);
 
         if (request.getRole() == Role.ROLE_DOCTOR) {
+
+            if (request.getSpecialization() == null || request.getSpecialization().isBlank()) {
+                throw new IllegalArgumentException("Specialization is required for doctor");
+            }
+
+            if (request.getExperience() == null) {
+                throw new IllegalArgumentException("Experience is required for doctor");
+            }
+
             Doctor doctor = new Doctor();
             doctor.setName(request.getName());
             doctor.setEmail(request.getEmail());
+            doctor.setSpecialization(request.getSpecialization());
+            doctor.setExperience(request.getExperience());
+
             doctorRepository.save(doctor);
         }
 
@@ -94,7 +106,6 @@ public class AuthServiceImpl implements AuthService {
 
         User user = userRepository.findByEmail(request.getEmail()).orElseThrow();
 
-        
         String token = jwtUtil.generateToken(
                 user.getId(),
                 user.getEmail(),

@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.medicnote.backend.dto.request.AppointmentRequestDTO;
 import com.medicnote.backend.dto.response.AppointmentResponseDTO;
+import com.medicnote.backend.dto.response.AvailabilityResponseDTO;
 import com.medicnote.backend.security.service.CustomUserDetails;
 import com.medicnote.backend.service.AppointmentService;
 
@@ -92,7 +93,7 @@ public class AppointmentController {
 
     @GetMapping("/doctor/{doctorId}/availability")
     @PreAuthorize("hasAnyRole('PATIENT','ADMIN')")
-    public List<AppointmentResponseDTO> getAvailability(@PathVariable Long doctorId) {
+    public List<AvailabilityResponseDTO> getAvailability(@PathVariable Long doctorId) {
 
         return appointmentService.getAvailability(doctorId);
     }

@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.medicnote.backend.dto.request.AppointmentRequestDTO;
 import com.medicnote.backend.dto.response.AppointmentResponseDTO;
+import com.medicnote.backend.dto.response.AvailabilityResponseDTO;
 import com.medicnote.backend.entity.Appointment;
 import com.medicnote.backend.entity.AppointmentStatus;
 import com.medicnote.backend.entity.Doctor;
@@ -31,263 +32,281 @@ import com.medicnote.backend.service.AppointmentService;
 @Service
 public class AppointmentServiceImpl implements AppointmentService {
 
-    private static final Logger logger = LoggerFactory.getLogger(AppointmentServiceImpl.class);
+        private static final Logger logger = LoggerFactory.getLogger(AppointmentServiceImpl.class);
 
-    private final AppointmentRepository appointmentRepository;
-    private final DoctorRepository doctorRepository;
-    private final PatientRepository patientRepository;
-    private final AppointmentMapper appointmentMapper;
+        private final AppointmentRepository appointmentRepository;
+        private final DoctorRepository doctorRepository;
+        private final PatientRepository patientRepository;
+        private final AppointmentMapper appointmentMapper;
 
-    public AppointmentServiceImpl(AppointmentRepository appointmentRepository,
-                                  DoctorRepository doctorRepository,
-                                  PatientRepository patientRepository,
-                                  AppointmentMapper appointmentMapper) {
-        this.appointmentRepository = appointmentRepository;
-        this.doctorRepository = doctorRepository;
-        this.patientRepository = patientRepository;
-        this.appointmentMapper = appointmentMapper;
-    }
-
-    // =========================
-    //  BOOK APPOINTMENT (THREAD SAFE)
-    // =========================
-    @Override
-    @Transactional
-    public AppointmentResponseDTO bookAppointment(AppointmentRequestDTO request, Long patientId) {
-
-        logger.info("Booking appointment for doctor {} and patient {}", request.getDoctorId(), patientId);
-
-        LocalDate today = LocalDate.now();
-        LocalDate monday = today.minusDays(today.getDayOfWeek().getValue() - 1);
-        LocalDate friday = monday.plusDays(4);
-
-        LocalDate selectedDate = request.getAppointmentDate();
-
-        //  Prevent past booking
-        if (selectedDate.isBefore(today)) {
-            throw new IllegalArgumentException("Cannot book past dates");
+        public AppointmentServiceImpl(AppointmentRepository appointmentRepository,
+                        DoctorRepository doctorRepository,
+                        PatientRepository patientRepository,
+                        AppointmentMapper appointmentMapper) {
+                this.appointmentRepository = appointmentRepository;
+                this.doctorRepository = doctorRepository;
+                this.patientRepository = patientRepository;
+                this.appointmentMapper = appointmentMapper;
         }
 
-        //  Only current week weekdays
-        if (selectedDate.isBefore(monday) || selectedDate.isAfter(friday)) {
-            throw new IllegalArgumentException("Booking allowed only for current week's weekdays");
+        @Override
+        @Transactional
+        public AppointmentResponseDTO bookAppointment(AppointmentRequestDTO request, Long patientId) {
+
+                logger.info("Booking appointment for doctor {} and patient {}", request.getDoctorId(), patientId);
+
+                LocalDate today = LocalDate.now();
+                LocalDate endDate = today.plusWeeks(2);
+
+                LocalDate selectedDate = request.getAppointmentDate();
+
+                logger.debug("Validating appointment date {}", selectedDate);
+
+                if (selectedDate.isBefore(today)) {
+                        throw new IllegalArgumentException("Cannot book past dates");
+                }
+
+                if (selectedDate.isAfter(endDate)) {
+                        throw new IllegalArgumentException("Booking allowed only within next 2 weeks");
+                }
+
+                if (selectedDate.getDayOfWeek().getValue() > 5) {
+                        throw new IllegalArgumentException("Doctor not available on weekends");
+                }
+
+                Doctor doctor = doctorRepository.findById(request.getDoctorId())
+                                .orElseThrow(() -> new ResourceNotFoundException("Doctor not found"));
+
+                logger.info("Doctor found: {}", doctor.getEmail());
+
+                CustomUserDetails user = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication()
+                                .getPrincipal();
+
+                Patient patient = patientRepository.findByEmail(user.getUsername())
+                                .orElseThrow(() -> new ResourceNotFoundException("Patient not found"));
+
+                logger.info("Patient found: {}", patient.getEmail());
+
+                List<Appointment> lockedAppointments = appointmentRepository.findByDoctorIdAndDateForUpdate(
+                                doctor.getId(),
+                                selectedDate);
+
+                logger.debug("Existing appointments count: {}", lockedAppointments.size());
+
+                boolean alreadyBooked = lockedAppointments.stream()
+                                .anyMatch(a -> a.getPatient().getId().equals(patient.getId()) &&
+                                                a.getStatus() != AppointmentStatus.CANCELLED);
+
+                if (alreadyBooked) {
+                        throw new IllegalArgumentException(
+                                        "You already have an appointment with this doctor on this date");
+                }
+
+                long count = lockedAppointments.stream()
+                                .filter(a -> a.getStatus() != AppointmentStatus.CANCELLED)
+                                .count();
+
+                if (count >= 10) {
+                        throw new IllegalArgumentException("Selected date is full");
+                }
+
+                int queue = (int) count + 1;
+
+                LocalTime time = LocalTime.of(9, 0)
+                                .plusMinutes((queue - 1) * 30);
+
+                Appointment appointment = new Appointment();
+                appointment.setDoctor(doctor);
+                appointment.setPatient(patient);
+                appointment.setAppointmentDate(selectedDate);
+                appointment.setAppointmentTime(time);
+                appointment.setQueueNumber(queue);
+                appointment.setStatus(AppointmentStatus.PENDING);
+
+                logger.info("Saving appointment with queue {}", queue);
+
+                try {
+                        return appointmentMapper.toDTO(appointmentRepository.save(appointment));
+                } catch (Exception ex) {
+                        logger.error("Error while saving appointment", ex);
+                        throw new IllegalArgumentException("Slot already booked, please try again");
+                }
         }
 
-        //  No weekends
-        if (selectedDate.getDayOfWeek().getValue() > 5) {
-            throw new IllegalArgumentException("Doctor not available on weekends");
+        @Override
+        public List<AppointmentResponseDTO> getDoctorQueue(Long doctorId) {
+
+                logger.info("Fetching today's queue for doctor {}", doctorId);
+
+                return appointmentRepository
+                                .findByDoctorIdAndAppointmentDateOrderByQueueNumberAsc(
+                                                doctorId,
+                                                LocalDate.now())
+                                .stream()
+                                .map(appointmentMapper::toDTO)
+                                .collect(Collectors.toList());
         }
 
-        Doctor doctor = doctorRepository.findById(request.getDoctorId())
-                .orElseThrow(() -> new ResourceNotFoundException("Doctor not found"));
+        @Override
+        public List<AppointmentResponseDTO> getAppointmentsByDoctor(Long doctorId) {
 
-        Patient patient = patientRepository.findById(patientId)
-                .orElseThrow(() -> new ResourceNotFoundException("Patient not found"));
+                logger.info("Fetching all appointments for doctor {}", doctorId);
 
-        //  LOCK appointments (critical for concurrency)
-        List<Appointment> lockedAppointments =
-                appointmentRepository.findByDoctorIdAndDateForUpdate(
-                        request.getDoctorId(),
-                        selectedDate
-                );
-
-        //  Prevent duplicate booking (same doctor + same day)
-        boolean alreadyBooked = lockedAppointments.stream()
-                .anyMatch(a ->
-                        a.getPatient().getId().equals(patientId) &&
-                        a.getStatus() != AppointmentStatus.CANCELLED
-                );
-
-        if (alreadyBooked) {
-            throw new IllegalArgumentException(
-                    "You already have an appointment with this doctor on this date");
+                return appointmentRepository.findByDoctorId(doctorId)
+                                .stream()
+                                .map(appointmentMapper::toDTO)
+                                .collect(Collectors.toList());
         }
 
-        //  Count valid appointments
-        long count = lockedAppointments.stream()
-                .filter(a -> a.getStatus() != AppointmentStatus.CANCELLED)
-                .count();
+        @Override
+        public List<AppointmentResponseDTO> getAppointmentsByPatient(Long patientId) {
 
-        if (count >= 10) {
-            throw new IllegalArgumentException("Selected date is full");
+                CustomUserDetails user = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication()
+                                .getPrincipal();
+
+                Patient patient = patientRepository.findByEmail(user.getUsername())
+                                .orElseThrow(() -> new ResourceNotFoundException("Patient not found"));
+
+                logger.info("Fetching appointments for patient {}", patient.getEmail());
+
+                return appointmentRepository.findByPatientId(patient.getId())
+                                .stream()
+                                .map(appointmentMapper::toDTO)
+                                .collect(Collectors.toList());
         }
 
-        int queue = (int) count + 1;
+        @Override
+        public List<AppointmentResponseDTO> getPatientHistory(Long patientId) {
 
-        //  Auto-generate time (9 AM + 30 mins per slot)
-        LocalTime time = LocalTime.of(9, 0)
-                .plusMinutes((queue - 1) * 30);
+                CustomUserDetails user = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication()
+                                .getPrincipal();
 
-        Appointment appointment = new Appointment();
-        appointment.setDoctor(doctor);
-        appointment.setPatient(patient);
-        appointment.setAppointmentDate(selectedDate);
-        appointment.setAppointmentTime(time);
-        appointment.setQueueNumber(queue);
-        appointment.setStatus(AppointmentStatus.PENDING);
+                Patient patient = patientRepository.findByEmail(user.getUsername())
+                                .orElseThrow(() -> new ResourceNotFoundException("Patient not found"));
 
-        //  HANDLE DB UNIQUE CONSTRAINT FAILURE
-        try {
-            return appointmentMapper.toDTO(appointmentRepository.save(appointment));
-        } catch (Exception ex) {
-            throw new IllegalArgumentException("Slot already booked, please try again");
-        }
-    }
+                logger.info("Fetching appointment history for patient {}", patient.getEmail());
 
-    // =========================
-    // DOCTOR QUEUE
-    // =========================
-    @Override
-    public List<AppointmentResponseDTO> getDoctorQueue(Long doctorId) {
-
-        return appointmentRepository
-                .findByDoctorIdAndAppointmentDateOrderByQueueNumberAsc(
-                        doctorId,
-                        LocalDate.now()
-                )
-                .stream()
-                .map(appointmentMapper::toDTO)
-                .collect(Collectors.toList());
-    }
-
-    // =========================
-    // DOCTOR APPOINTMENTS
-    // =========================
-    @Override
-    public List<AppointmentResponseDTO> getAppointmentsByDoctor(Long doctorId) {
-
-        return appointmentRepository.findByDoctorId(doctorId)
-                .stream()
-                .map(appointmentMapper::toDTO)
-                .collect(Collectors.toList());
-    }
-
-    // =========================
-    // PATIENT APPOINTMENTS
-    // =========================
-    @Override
-    public List<AppointmentResponseDTO> getAppointmentsByPatient(Long patientId) {
-
-        return appointmentRepository.findByPatientId(patientId)
-                .stream()
-                .map(appointmentMapper::toDTO)
-                .collect(Collectors.toList());
-    }
-
-    // =========================
-    // PATIENT HISTORY
-    // =========================
-    @Override
-    public List<AppointmentResponseDTO> getPatientHistory(Long patientId) {
-
-        return appointmentRepository
-                .findByPatientIdAndAppointmentDateBefore(patientId, LocalDate.now())
-                .stream()
-                .map(appointmentMapper::toDTO)
-                .collect(Collectors.toList());
-    }
-
-    // =========================
-    // UPDATE STATUS
-    // =========================
-    @Override
-    public AppointmentResponseDTO updateStatus(Long appointmentId, String status, Long doctorId) {
-
-        Appointment appointment = appointmentRepository.findById(appointmentId)
-                .orElseThrow(() -> new ResourceNotFoundException("Appointment not found"));
-
-        CustomUserDetails user =
-                (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-
-        boolean isAdmin = user.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ADMIN"));
-
-        if (!isAdmin && !appointment.getDoctor().getId().equals(doctorId)) {
-            throw new AccessDeniedException("Not allowed");
+                return appointmentRepository
+                                .findByPatientIdAndAppointmentDateBefore(patient.getId(), LocalDate.now())
+                                .stream()
+                                .map(appointmentMapper::toDTO)
+                                .collect(Collectors.toList());
         }
 
-        appointment.setStatus(AppointmentStatus.valueOf(status.toUpperCase()));
+        @Override
+        public AppointmentResponseDTO updateStatus(Long appointmentId, String status, Long doctorId) {
 
-        return appointmentMapper.toDTO(appointmentRepository.save(appointment));
-    }
+                logger.info("Updating status of appointment {} to {}", appointmentId, status);
 
-    // =========================
-    // CANCEL + REORDER
-    // =========================
-    @Override
-    @Transactional
-    public void cancelAppointment(Long appointmentId, Long patientId) {
+                Appointment appointment = appointmentRepository.findById(appointmentId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Appointment not found"));
 
-        Appointment appointment = appointmentRepository.findById(appointmentId)
-                .orElseThrow(() -> new ResourceNotFoundException("Appointment not found"));
+                CustomUserDetails user = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication()
+                                .getPrincipal();
 
-        CustomUserDetails user =
-                (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+                boolean isAdmin = user.getAuthorities().stream()
+                                .anyMatch(a -> a.getAuthority().equals("ADMIN"));
 
-        boolean isAdmin = user.getAuthorities().stream()
-                .anyMatch(a -> a.getAuthority().equals("ADMIN"));
+                if (!isAdmin && !appointment.getDoctor().getId().equals(doctorId)) {
+                        throw new AccessDeniedException("Not allowed");
+                }
 
-        if (!isAdmin && !appointment.getPatient().getId().equals(patientId)) {
-            throw new AccessDeniedException("Not allowed");
+                try {
+                        appointment.setStatus(AppointmentStatus.valueOf(status.toUpperCase()));
+                } catch (Exception e) {
+                        throw new IllegalArgumentException("Invalid status value");
+                }
+
+                return appointmentMapper.toDTO(appointmentRepository.save(appointment));
         }
 
-        appointment.setStatus(AppointmentStatus.CANCELLED);
-        appointmentRepository.save(appointment);
+        @Override
+        @Transactional
+        public void cancelAppointment(Long appointmentId, Long patientId) {
 
-        List<Appointment> appointments =
-                appointmentRepository.findByDoctorIdAndAppointmentDateOrderByQueueNumberAsc(
-                        appointment.getDoctor().getId(),
-                        appointment.getAppointmentDate()
-                );
+                logger.info("Cancelling appointment {}", appointmentId);
 
-        int queue = 1;
+                Appointment appointment = appointmentRepository.findById(appointmentId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Appointment not found"));
 
-        for (Appointment appt : appointments) {
+                CustomUserDetails user = (CustomUserDetails) SecurityContextHolder.getContext().getAuthentication()
+                                .getPrincipal();
 
-            if (appt.getStatus() == AppointmentStatus.CANCELLED) continue;
+                boolean isAdmin = user.getAuthorities().stream()
+                                .anyMatch(a -> a.getAuthority().equals("ADMIN"));
 
-            appt.setQueueNumber(queue);
+                if (!isAdmin && !appointment.getPatient().getEmail().equals(user.getUsername())) {
+                        throw new AccessDeniedException("Not allowed");
+                }
 
-            LocalTime time = LocalTime.of(9, 0)
-                    .plusMinutes((queue - 1) * 30);
+                if (appointment.getStatus() == AppointmentStatus.CANCELLED) {
+                        return;
+                }
 
-            appt.setAppointmentTime(time);
+                appointment.setStatus(AppointmentStatus.CANCELLED);
+                appointmentRepository.save(appointment);
 
-            appointmentRepository.save(appt);
+                List<Appointment> appointments = appointmentRepository
+                                .findByDoctorIdAndAppointmentDateOrderByQueueNumberAsc(
+                                                appointment.getDoctor().getId(),
+                                                appointment.getAppointmentDate());
 
-            queue++;
-        }
-    }
+                int queue = 1;
 
-    // =========================
-    // AVAILABILITY
-    // =========================
-    @Override
-    public List<AppointmentResponseDTO> getAvailability(Long doctorId) {
+                for (Appointment appt : appointments) {
 
-        List<AppointmentResponseDTO> result = new ArrayList<>();
+                        if (appt.getStatus() == AppointmentStatus.CANCELLED)
+                                continue;
 
-        LocalDate today = LocalDate.now();
-        LocalDate monday = today.minusDays(today.getDayOfWeek().getValue() - 1);
+                        appt.setQueueNumber(queue);
 
-        for (int i = 0; i < 5; i++) {
+                        LocalTime time = LocalTime.of(9, 0)
+                                        .plusMinutes((queue - 1) * 30);
 
-            LocalDate date = monday.plusDays(i);
+                        appt.setAppointmentTime(time);
 
-            long count = appointmentRepository
-                    .countByDoctorIdAndAppointmentDateAndStatusNot(
-                            doctorId,
-                            date,
-                            AppointmentStatus.CANCELLED
-                    );
+                        appointmentRepository.save(appt);
 
-            Appointment temp = new Appointment();
-            temp.setAppointmentDate(date);
-            temp.setQueueNumber((int) (10 - count));
-
-            result.add(appointmentMapper.toDTO(temp));
+                        queue++;
+                }
         }
 
-        return result;
-    }
+        @Override
+        public List<AvailabilityResponseDTO> getAvailability(Long doctorId) {
+
+                logger.info("Fetching availability for doctor {}", doctorId);
+
+                Doctor doctor = doctorRepository.findById(doctorId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Doctor not found"));
+
+                List<AvailabilityResponseDTO> result = new ArrayList<>();
+
+                LocalDate today = LocalDate.now();
+                LocalDate endDate = today.plusWeeks(2);
+
+                LocalDate current = today;
+
+                while (!current.isAfter(endDate)) {
+
+                        if (current.getDayOfWeek().getValue() <= 5) {
+
+                                long count = appointmentRepository
+                                                .countByDoctorIdAndAppointmentDateAndStatusNot(
+                                                                doctor.getId(),
+                                                                current,
+                                                                AppointmentStatus.CANCELLED);
+
+                                AvailabilityResponseDTO dto = new AvailabilityResponseDTO();
+                                dto.setDate(current);
+                                dto.setAvailableSlots((int) (10 - count));
+                                dto.setDoctorName(doctor.getName());
+
+                                result.add(dto);
+                        }
+
+                        current = current.plusDays(1);
+                }
+
+                return result;
+        }
 }
