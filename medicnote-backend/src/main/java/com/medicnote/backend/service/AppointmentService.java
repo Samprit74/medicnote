@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.medicnote.backend.dto.request.AppointmentRequestDTO;
 import com.medicnote.backend.dto.response.AppointmentResponseDTO;
+import com.medicnote.backend.dto.response.AvailabilityResponseDTO;
 
 public interface AppointmentService {
 
@@ -21,5 +22,5 @@ public interface AppointmentService {
 
     void cancelAppointment(Long appointmentId, Long patientId);
 
-    List<AppointmentResponseDTO> getAvailability(Long doctorId);
+    List<AvailabilityResponseDTO> getAvailability(Long doctorId);
 }

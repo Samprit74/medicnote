@@ -12,6 +12,8 @@ import org.springframework.stereotype.Repository;
 import com.medicnote.backend.entity.Appointment;
 import com.medicnote.backend.entity.AppointmentStatus;
 
+
+
 import jakarta.persistence.LockModeType;
 
 @Repository

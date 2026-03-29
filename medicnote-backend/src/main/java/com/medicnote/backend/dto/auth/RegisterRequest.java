@@ -9,6 +9,10 @@ public class RegisterRequest {
     private String password;
     private Role role;
 
+    
+    private String specialization;
+    private Integer experience;
+
     public RegisterRequest() {}
 
     public String getName() { return name; }
@@ -22,4 +26,10 @@ public class RegisterRequest {
 
     public Role getRole() { return role; }
     public void setRole(Role role) { this.role = role; }
+
+    public String getSpecialization() { return specialization; }
+    public void setSpecialization(String specialization) { this.specialization = specialization; }
+
+    public Integer getExperience() { return experience; }
+    public void setExperience(Integer experience) { this.experience = experience; }
 }

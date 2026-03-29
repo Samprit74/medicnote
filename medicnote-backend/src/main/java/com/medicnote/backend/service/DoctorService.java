@@ -13,6 +13,8 @@ public interface DoctorService {
 
     DoctorResponseDTO getDoctorById(Long id);
 
+    DoctorResponseDTO getDoctorByEmail(String email);
+
     List<DoctorResponseDTO> getAllDoctors();
 
     DoctorResponseDTO updateDoctor(Long id, DoctorRequestDTO request);

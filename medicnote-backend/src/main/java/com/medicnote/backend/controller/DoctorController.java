@@ -33,8 +33,8 @@ public class DoctorController {
     @GetMapping("/me")
     @PreAuthorize("hasAnyRole('ADMIN','DOCTOR')")
     public DoctorResponseDTO getDoctorById(Authentication auth) {
-        Long id = ((CustomUserDetails) auth.getPrincipal()).getId();
-        return doctorService.getDoctorById(id);
+        String email = ((CustomUserDetails) auth.getPrincipal()).getUsername();
+        return doctorService.getDoctorByEmail(email);
     }
 
     @GetMapping
@@ -46,7 +46,7 @@ public class DoctorController {
     @PutMapping("/me")
     @PreAuthorize("hasAnyRole('ADMIN','DOCTOR')")
     public DoctorResponseDTO updateDoctor(Authentication auth,
-                                          @Valid @RequestBody DoctorRequestDTO request) {
+            @Valid @RequestBody DoctorRequestDTO request) {
         Long id = ((CustomUserDetails) auth.getPrincipal()).getId();
         return doctorService.updateDoctor(id, request);
     }
@@ -54,7 +54,7 @@ public class DoctorController {
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public DoctorResponseDTO updateDoctorByAdmin(@PathVariable Long id,
-                                                 @Valid @RequestBody DoctorRequestDTO request) {
+            @Valid @RequestBody DoctorRequestDTO request) {
         return doctorService.updateDoctor(id, request);
     }
 
