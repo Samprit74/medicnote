@@ -1,8 +1,6 @@
 package com.medicnote.backend.service.impl;
 
 import java.time.LocalDate;
-import java.util.List;
-import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,8 +34,6 @@ public class PatientServiceImpl implements PatientService {
     @Override
     public PatientResponseDTO getById(Long id) {
 
-        logger.info("Fetching patient {}", id);
-
         Patient patient = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Patient not found"));
 
@@ -47,8 +43,6 @@ public class PatientServiceImpl implements PatientService {
     @Override
     @Transactional
     public PatientResponseDTO update(Long id, PatientRequestDTO request) {
-
-        logger.info("Updating patient {}", id);
 
         Patient patient = repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Patient not found"));
@@ -60,78 +54,37 @@ public class PatientServiceImpl implements PatientService {
         patient.setGender(request.getGender());
         patient.setAddress(request.getAddress());
 
-        Patient updated = repository.save(patient);
-
-        logger.info("Patient {} updated successfully", id);
-
-        return mapper.toDTO(updated);
+        return mapper.toDTO(repository.save(patient));
     }
 
     @Override
-    public List<PatientResponseDTO> getAll() {
-
-        logger.info("Fetching all patients");
-
-        return repository.findAll()
-                .stream()
-                .map(mapper::toDTO)
-                .collect(Collectors.toList());
+    public Page<PatientResponseDTO> getAllPaginated(int page, int size) {
+        return repository.findAll(PageRequest.of(page, size))
+                .map(mapper::toDTO);
     }
 
     @Override
     @Transactional
     public void delete(Long id) {
 
-        logger.info("Deleting patient {}", id);
-
         if (!repository.existsById(id)) {
             throw new ResourceNotFoundException("Patient not found");
         }
 
         repository.deleteById(id);
-
-        logger.info("Patient {} deleted successfully", id);
-    }
-
-    @Override
-    public List<PatientResponseDTO> getPatientsByDoctor(Long doctorId) {
-
-        logger.info("Fetching patients for doctor {}", doctorId);
-
-        return repository.findDistinctByAppointmentsDoctorId(doctorId)
-                .stream()
-                .map(mapper::toDTO)
-                .collect(Collectors.toList());
     }
 
     @Override
     public Page<PatientResponseDTO> getPatientsByDoctorPaginated(Long doctorId, int page, int size) {
 
-        logger.info("Fetching paginated patients for doctor {} page {} size {}", doctorId, page, size);
-
-        return repository.findWeeklyPatientsByDoctor(
+        return repository.findDistinctByAppointmentsDoctorId(
                 doctorId,
-                LocalDate.now().minusYears(100),
-                LocalDate.now(),
                 PageRequest.of(page, size)
         ).map(mapper::toDTO);
     }
 
     @Override
-    public List<PatientResponseDTO> searchPatientsByDoctor(Long doctorId, String keyword) {
-
-        logger.info("Searching patients for doctor {} with keyword {}", doctorId, keyword);
-
-        return repository.searchPatientsByDoctor(doctorId, keyword)
-                .stream()
-                .map(mapper::toDTO)
-                .collect(Collectors.toList());
-    }
-
-    @Override
     public Page<PatientResponseDTO> searchPatientsByDoctorPaginated(Long doctorId, String keyword, int page, int size) {
-
-        logger.info("Searching paginated patients for doctor {} keyword {} page {} size {}", doctorId, keyword, page, size);
 
         return repository.searchPatientsByDoctorPaginated(
                 doctorId,
@@ -141,20 +94,7 @@ public class PatientServiceImpl implements PatientService {
     }
 
     @Override
-    public List<PatientResponseDTO> getTodayPatients(Long doctorId, LocalDate date) {
-
-        logger.info("Fetching today patients for doctor {} on {}", doctorId, date);
-
-        return repository.findTodayPatientsByDoctor(doctorId, date)
-                .stream()
-                .map(mapper::toDTO)
-                .collect(Collectors.toList());
-    }
-
-    @Override
     public Page<PatientResponseDTO> getTodayPatientsPaginated(Long doctorId, LocalDate date, int page, int size) {
-
-        logger.info("Fetching paginated today patients for doctor {} page {} size {}", doctorId, page, size);
 
         return repository.findTodayPatientsByDoctorPaginated(
                 doctorId,
@@ -165,8 +105,6 @@ public class PatientServiceImpl implements PatientService {
 
     @Override
     public Page<PatientResponseDTO> getWeeklyPatients(Long doctorId, LocalDate start, LocalDate end, int page, int size) {
-
-        logger.info("Fetching weekly patients for doctor {} from {} to {}", doctorId, start, end);
 
         return repository.findWeeklyPatientsByDoctor(
                 doctorId,

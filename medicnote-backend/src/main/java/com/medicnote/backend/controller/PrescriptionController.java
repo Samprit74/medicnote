@@ -1,6 +1,7 @@
 package com.medicnote.backend.controller;
 
 import com.medicnote.backend.dto.request.PrescriptionRequestDTO;
+import com.medicnote.backend.dto.request.PrescriptionByEmailRequestDTO;
 import com.medicnote.backend.dto.response.PrescriptionResponseDTO;
 import com.medicnote.backend.security.service.CustomUserDetails;
 import com.medicnote.backend.service.PrescriptionService;
@@ -15,7 +16,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
-import java.util.List;
 
 @RestController
 @RequestMapping("/api/prescriptions")
@@ -31,46 +31,71 @@ public class PrescriptionController {
     @PreAuthorize("hasRole('DOCTOR')")
     public PrescriptionResponseDTO create(@Valid @RequestBody PrescriptionRequestDTO request,
                                           Authentication auth) {
+
         Long doctorId = ((CustomUserDetails) auth.getPrincipal()).getId();
         return service.create(request, doctorId);
     }
 
+    @PostMapping("/appointment")
+    @PreAuthorize("hasRole('DOCTOR')")
+    public PrescriptionResponseDTO createUsingAppointment(
+            @RequestParam Long appointmentId,
+            @RequestBody(required = false) PrescriptionRequestDTO request,
+            Authentication auth) {
+
+        Long doctorId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        return service.createUsingAppointment(appointmentId, request, doctorId);
+    }
+
+    @PostMapping("/email")
+    @PreAuthorize("hasRole('DOCTOR')")
+    public PrescriptionResponseDTO createUsingEmail(
+            @Valid @RequestBody PrescriptionByEmailRequestDTO request,
+            Authentication auth) {
+
+        Long doctorId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        return service.createUsingEmail(request, doctorId);
+    }
+
     @GetMapping("/patient/me")
     @PreAuthorize("hasAnyRole('PATIENT','ADMIN')")
-    public Page<PrescriptionResponseDTO> getByPatient(
-            Authentication auth,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "5") int size) {
+    public Page<PrescriptionResponseDTO> getByPatient(Authentication auth,
+                                                      @RequestParam(defaultValue = "0") int page,
+                                                      @RequestParam(defaultValue = "7") int size) {
 
         Long patientId = ((CustomUserDetails) auth.getPrincipal()).getId();
         return service.getByPatient(patientId, page, size);
     }
 
-    @GetMapping("/doctor/me")
-    @PreAuthorize("hasAnyRole('DOCTOR','ADMIN')")
-    public Page<PrescriptionResponseDTO> getByDoctor(
-            Authentication auth,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "5") int size) {
+    @GetMapping("/patient/me/date")
+    @PreAuthorize("hasAnyRole('PATIENT','ADMIN')")
+    public Page<PrescriptionResponseDTO> getByDate(Authentication auth,
+                                                   @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+                                                   @RequestParam(defaultValue = "0") int page,
+                                                   @RequestParam(defaultValue = "7") int size) {
 
-        Long doctorId = ((CustomUserDetails) auth.getPrincipal()).getId();
-        return service.getByDoctor(doctorId, page, size);
+        Long patientId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        return service.getByPatientAndDate(patientId, date, page, size);
     }
 
-    @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('PATIENT','DOCTOR','ADMIN')")
-    public PrescriptionResponseDTO getById(@PathVariable Long id) {
-        return service.getById(id);
+    @GetMapping("/patient/me/doctor")
+    @PreAuthorize("hasAnyRole('PATIENT','ADMIN')")
+    public Page<PrescriptionResponseDTO> getByDoctor(Authentication auth,
+                                                     @RequestParam String doctorName,
+                                                     @RequestParam(defaultValue = "0") int page,
+                                                     @RequestParam(defaultValue = "7") int size) {
+
+        Long patientId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        return service.getByPatientAndDoctor(patientId, doctorName, page, size);
     }
 
     @GetMapping("/patient/me/range")
     @PreAuthorize("hasAnyRole('PATIENT','ADMIN')")
-    public Page<PrescriptionResponseDTO> getByDateRange(
-            Authentication auth,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate start,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate end,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "5") int size) {
+    public Page<PrescriptionResponseDTO> getByRange(Authentication auth,
+                                                    @RequestParam LocalDate start,
+                                                    @RequestParam LocalDate end,
+                                                    @RequestParam(defaultValue = "0") int page,
+                                                    @RequestParam(defaultValue = "7") int size) {
 
         Long patientId = ((CustomUserDetails) auth.getPrincipal()).getId();
         return service.getByPatientAndDateRange(patientId, start.toString(), end.toString(), page, size);
@@ -78,12 +103,32 @@ public class PrescriptionController {
 
     @GetMapping("/doctor/me/patient/{patientId}")
     @PreAuthorize("hasAnyRole('DOCTOR','ADMIN')")
-    public List<PrescriptionResponseDTO> getDoctorPatientPrescriptions(
+    public Page<PrescriptionResponseDTO> getDoctorPatientPrescriptions(
             Authentication auth,
-            @PathVariable Long patientId) {
+            @PathVariable Long patientId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "7") int size) {
 
         Long doctorId = ((CustomUserDetails) auth.getPrincipal()).getId();
-        return service.getDoctorPatientPrescriptions(doctorId, patientId);
+        return service.getDoctorPatientPrescriptions(doctorId, patientId, page, size);
+    }
+
+    @GetMapping("/doctor/me/date")
+    @PreAuthorize("hasAnyRole('DOCTOR','ADMIN')")
+    public Page<PrescriptionResponseDTO> getDoctorByDate(
+            Authentication auth,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "7") int size) {
+
+        Long doctorId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        return service.getDoctorPrescriptionsByDate(doctorId, date, page, size);
+    }
+
+    @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('PATIENT','DOCTOR','ADMIN')")
+    public PrescriptionResponseDTO getById(@PathVariable Long id) {
+        return service.getById(id);
     }
 
     @GetMapping("/{id}/download")

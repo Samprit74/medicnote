@@ -1,7 +1,6 @@
 package com.medicnote.backend.service;
 
 import java.time.LocalDate;
-import java.util.List;
 
 import org.springframework.data.domain.Page;
 
@@ -14,19 +13,13 @@ public interface PatientService {
 
     PatientResponseDTO update(Long id, PatientRequestDTO request);
 
-    List<PatientResponseDTO> getAll();
+    Page<PatientResponseDTO> getAllPaginated(int page, int size);
 
     void delete(Long id);
 
-    List<PatientResponseDTO> getPatientsByDoctor(Long doctorId);
-
     Page<PatientResponseDTO> getPatientsByDoctorPaginated(Long doctorId, int page, int size);
 
-    List<PatientResponseDTO> searchPatientsByDoctor(Long doctorId, String keyword);
-
     Page<PatientResponseDTO> searchPatientsByDoctorPaginated(Long doctorId, String keyword, int page, int size);
-
-    List<PatientResponseDTO> getTodayPatients(Long doctorId, LocalDate date);
 
     Page<PatientResponseDTO> getTodayPatientsPaginated(Long doctorId, LocalDate date, int page, int size);
 

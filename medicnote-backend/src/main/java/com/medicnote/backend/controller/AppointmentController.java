@@ -2,6 +2,7 @@ package com.medicnote.backend.controller;
 
 import java.util.List;
 
+import org.springframework.data.domain.Page;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -50,26 +51,35 @@ public class AppointmentController {
 
     @GetMapping("/doctor/me")
     @PreAuthorize("hasAnyRole('DOCTOR','ADMIN')")
-    public List<AppointmentResponseDTO> getAppointmentsByDoctor(Authentication auth) {
+    public Page<AppointmentResponseDTO> getAppointmentsByDoctor(
+            Authentication auth,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
 
         Long doctorId = ((CustomUserDetails) auth.getPrincipal()).getId();
-        return appointmentService.getAppointmentsByDoctor(doctorId);
+        return appointmentService.getAppointmentsByDoctor(doctorId, page, size);
     }
 
     @GetMapping("/patient/me")
     @PreAuthorize("hasAnyRole('PATIENT','ADMIN')")
-    public List<AppointmentResponseDTO> getAppointmentsByPatient(Authentication auth) {
+    public Page<AppointmentResponseDTO> getAppointmentsByPatient(
+            Authentication auth,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
 
         Long patientId = ((CustomUserDetails) auth.getPrincipal()).getId();
-        return appointmentService.getAppointmentsByPatient(patientId);
+        return appointmentService.getAppointmentsByPatient(patientId, page, size);
     }
 
     @GetMapping("/patient/me/history")
     @PreAuthorize("hasAnyRole('PATIENT','ADMIN')")
-    public List<AppointmentResponseDTO> getPatientHistory(Authentication auth) {
+    public Page<AppointmentResponseDTO> getPatientHistory(
+            Authentication auth,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
 
         Long patientId = ((CustomUserDetails) auth.getPrincipal()).getId();
-        return appointmentService.getPatientHistory(patientId);
+        return appointmentService.getPatientHistory(patientId, page, size);
     }
 
     @PutMapping("/{appointmentId}/status")

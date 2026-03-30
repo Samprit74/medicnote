@@ -13,6 +13,9 @@ public class DoctorDashboardDTO {
 
     private List<NextAppointmentDTO> nextAppointments;
 
+    private long totalAppointmentsInWindow;
+    private long completedAppointmentsInWindow;
+
     public DoctorDashboardDTO() {}
 
     public Long getDoctorId() { return doctorId; }
@@ -32,4 +35,14 @@ public class DoctorDashboardDTO {
 
     public List<NextAppointmentDTO> getNextAppointments() { return nextAppointments; }
     public void setNextAppointments(List<NextAppointmentDTO> nextAppointments) { this.nextAppointments = nextAppointments; }
+
+    public long getTotalAppointmentsInWindow() { return totalAppointmentsInWindow; }
+    public void setTotalAppointmentsInWindow(long totalAppointmentsInWindow) {
+        this.totalAppointmentsInWindow = totalAppointmentsInWindow;
+    }
+
+    public long getCompletedAppointmentsInWindow() { return completedAppointmentsInWindow; }
+    public void setCompletedAppointmentsInWindow(long completedAppointmentsInWindow) {
+        this.completedAppointmentsInWindow = completedAppointmentsInWindow;
+    }
 }
