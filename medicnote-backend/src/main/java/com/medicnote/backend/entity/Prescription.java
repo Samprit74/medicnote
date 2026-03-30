@@ -8,7 +8,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "prescriptions")
+@Table(
+        name = "prescriptions",
+        uniqueConstraints = @UniqueConstraint(
+                columnNames = {"doctor_id", "patient_id", "date"}
+        )
+)
 public class Prescription {
 
     @Id

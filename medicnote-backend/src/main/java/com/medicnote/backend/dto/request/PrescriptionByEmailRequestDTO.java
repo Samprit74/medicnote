@@ -6,10 +6,13 @@ import jakarta.validation.constraints.NotNull;
 
 import java.util.List;
 
-public class PrescriptionRequestDTO {
+public class PrescriptionByEmailRequestDTO {
 
     @NotNull
-    private Long appointmentId;   // ✅ MAIN FIX
+    private Long appointmentId;
+
+    @NotNull
+    private String patientEmail;
 
     private String diagnosis;
 
@@ -19,10 +22,11 @@ public class PrescriptionRequestDTO {
     @NotEmpty
     private List<PrescriptionItemRequestDTO> items;
 
-    public PrescriptionRequestDTO() {}
-
     public Long getAppointmentId() { return appointmentId; }
     public void setAppointmentId(Long appointmentId) { this.appointmentId = appointmentId; }
+
+    public String getPatientEmail() { return patientEmail; }
+    public void setPatientEmail(String patientEmail) { this.patientEmail = patientEmail; }
 
     public String getDiagnosis() { return diagnosis; }
     public void setDiagnosis(String diagnosis) { this.diagnosis = diagnosis; }

@@ -2,11 +2,11 @@ package com.medicnote.backend.service.impl;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
 import com.medicnote.backend.dto.dashboard.DoctorDashboardDTO;
@@ -34,9 +34,9 @@ public class DashboardServiceImpl implements DashboardService {
     private final PrescriptionRepository prescriptionRepository;
 
     public DashboardServiceImpl(DoctorRepository doctorRepository,
-                                PatientRepository patientRepository,
-                                AppointmentRepository appointmentRepository,
-                                PrescriptionRepository prescriptionRepository) {
+                               PatientRepository patientRepository,
+                               AppointmentRepository appointmentRepository,
+                               PrescriptionRepository prescriptionRepository) {
         this.doctorRepository = doctorRepository;
         this.patientRepository = patientRepository;
         this.appointmentRepository = appointmentRepository;
@@ -52,37 +52,65 @@ public class DashboardServiceImpl implements DashboardService {
                 .orElseThrow(() -> new ResourceNotFoundException("Doctor not found"));
 
         LocalDate today = LocalDate.now();
+        LocalDate endDate = today.plusWeeks(2);
 
-        long totalPatients = appointmentRepository.countDistinctPatientIdByDoctor_Id(doctorId);
+        long totalPatients = safeCount(() ->
+                appointmentRepository.countDistinctPatientIdByDoctor_Id(doctorId)
+        );
 
-        long todayAppointments = appointmentRepository
-                .countByDoctorIdAndAppointmentDateAndStatusNot(
+        long todayAppointments = safeCount(() ->
+                appointmentRepository.countByDoctorIdAndAppointmentDateAndStatusNot(
                         doctorId,
                         today,
                         AppointmentStatus.CANCELLED
-                );
+                )
+        );
 
-        long completedAppointments = appointmentRepository
-                .countByDoctorIdAndAppointmentDateAndStatus(
+        long completedAppointments = safeCount(() ->
+                appointmentRepository.countByDoctorIdAndAppointmentDateAndStatus(
                         doctorId,
                         today,
                         AppointmentStatus.COMPLETED
-                );
-
-        List<NextAppointmentDTO> nextAppointments = appointmentRepository
-                .findTop2ByDoctorIdAndAppointmentDateAndStatusOrderByQueueNumberAsc(
-                        doctorId,
-                        today,
-                        AppointmentStatus.PENDING
                 )
-                .stream()
-                .map(a -> {
-                    NextAppointmentDTO dto = new NextAppointmentDTO();
-                    dto.setPatientName(a.getPatient().getName());
-                    dto.setTime(a.getAppointmentTime());
-                    return dto;
-                })
-                .collect(Collectors.toList());
+        );
+
+        long totalAppointmentsInWindow = 0;
+        long completedAppointmentsInWindow = 0;
+
+        try {
+            Object[] stats = appointmentRepository.getDashboardStats(doctorId, today, endDate);
+
+            if (stats != null) {
+                totalAppointmentsInWindow = ((Number) stats[0]).longValue();
+                completedAppointmentsInWindow = stats[1] != null
+                        ? ((Number) stats[1]).longValue()
+                        : 0;
+            }
+        } catch (Exception e) {
+            logger.error("Error fetching dashboard stats", e);
+        }
+
+        List<NextAppointmentDTO> nextAppointments;
+
+        try {
+            nextAppointments = appointmentRepository
+                    .findTop2ByDoctorIdAndAppointmentDateAndStatusOrderByQueueNumberAsc(
+                            doctorId,
+                            today,
+                            AppointmentStatus.PENDING
+                    )
+                    .stream()
+                    .map(a -> {
+                        NextAppointmentDTO dto = new NextAppointmentDTO();
+                        dto.setPatientName(a.getPatient().getName());
+                        dto.setTime(a.getAppointmentTime());
+                        return dto;
+                    })
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            logger.error("Failed to fetch next appointments", e);
+            nextAppointments = List.of();
+        }
 
         DoctorDashboardDTO dto = new DoctorDashboardDTO();
         dto.setDoctorId(doctor.getId());
@@ -91,6 +119,8 @@ public class DashboardServiceImpl implements DashboardService {
         dto.setTodayAppointments(todayAppointments);
         dto.setCompletedAppointments(completedAppointments);
         dto.setNextAppointments(nextAppointments);
+        dto.setTotalAppointmentsInWindow(totalAppointmentsInWindow);
+        dto.setCompletedAppointmentsInWindow(completedAppointmentsInWindow);
 
         return dto;
     }
@@ -103,27 +133,36 @@ public class DashboardServiceImpl implements DashboardService {
         Patient patient = patientRepository.findById(patientId)
                 .orElseThrow(() -> new ResourceNotFoundException("Patient not found"));
 
-        long totalAppointments = appointmentRepository.countByPatientId(patientId);
+        long totalAppointments = safeCount(() ->
+                appointmentRepository.countByPatientId(patientId)
+        );
 
-        long totalPrescriptions = prescriptionRepository
-                .findByPatientIdOrderByDateDesc(patientId, PageRequest.of(0, 1))
-                .getTotalElements();
+        long totalPrescriptions = safeCount(() ->
+                prescriptionRepository.countByPatientId(patientId)
+        );
 
-        List<UpcomingAppointmentDTO> upcomingAppointments = appointmentRepository
-                .findTop3ByPatientIdAndAppointmentDateAfterAndStatusOrderByAppointmentDateAsc(
-                        patientId,
-                        LocalDate.now(),
-                        AppointmentStatus.PENDING
-                )
-                .stream()
-                .map(a -> {
-                    UpcomingAppointmentDTO dto = new UpcomingAppointmentDTO();
-                    dto.setDoctorName(a.getDoctor().getName());
-                    dto.setDate(a.getAppointmentDate());
-                    dto.setTime(a.getAppointmentTime());
-                    return dto;
-                })
-                .collect(Collectors.toList());
+        List<UpcomingAppointmentDTO> upcomingAppointments;
+
+        try {
+            upcomingAppointments = appointmentRepository
+                    .findTop3ByPatientIdAndAppointmentDateAfterAndStatusOrderByAppointmentDateAsc(
+                            patientId,
+                            LocalDate.now(),
+                            AppointmentStatus.PENDING
+                    )
+                    .stream()
+                    .map(a -> {
+                        UpcomingAppointmentDTO dto = new UpcomingAppointmentDTO();
+                        dto.setDoctorName(a.getDoctor().getName());
+                        dto.setDate(a.getAppointmentDate());
+                        dto.setTime(a.getAppointmentTime());
+                        return dto;
+                    })
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            logger.error("Failed to fetch upcoming appointments", e);
+            upcomingAppointments = List.of();
+        }
 
         PatientDashboardDTO dto = new PatientDashboardDTO();
         dto.setPatientId(patient.getId());
@@ -133,5 +172,14 @@ public class DashboardServiceImpl implements DashboardService {
         dto.setUpcomingAppointments(upcomingAppointments);
 
         return dto;
+    }
+
+    private long safeCount(Supplier<Long> supplier) {
+        try {
+            return supplier.get();
+        } catch (Exception e) {
+            logger.error("Error executing dashboard query", e);
+            return 0;
+        }
     }
 }

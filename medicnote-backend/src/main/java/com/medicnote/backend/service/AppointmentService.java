@@ -2,6 +2,8 @@ package com.medicnote.backend.service;
 
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+
 import com.medicnote.backend.dto.request.AppointmentRequestDTO;
 import com.medicnote.backend.dto.response.AppointmentResponseDTO;
 import com.medicnote.backend.dto.response.AvailabilityResponseDTO;
@@ -12,11 +14,11 @@ public interface AppointmentService {
 
     List<AppointmentResponseDTO> getDoctorQueue(Long doctorId);
 
-    List<AppointmentResponseDTO> getAppointmentsByDoctor(Long doctorId);
+    Page<AppointmentResponseDTO> getAppointmentsByDoctor(Long doctorId, int page, int size);
 
-    List<AppointmentResponseDTO> getAppointmentsByPatient(Long patientId);
+    Page<AppointmentResponseDTO> getAppointmentsByPatient(Long patientId, int page, int size);
 
-    List<AppointmentResponseDTO> getPatientHistory(Long patientId);
+    Page<AppointmentResponseDTO> getPatientHistory(Long patientId, int page, int size);
 
     AppointmentResponseDTO updateStatus(Long appointmentId, String status, Long doctorId);
 

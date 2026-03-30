@@ -15,7 +15,7 @@ import java.util.Optional;
 @Repository
 public interface PatientRepository extends JpaRepository<Patient, Long> {
 
-    List<Patient> findDistinctByAppointmentsDoctorId(Long doctorId);
+    Page<Patient> findDistinctByAppointmentsDoctorId(Long doctorId, Pageable pageable);
 
     @Query("""
                 SELECT DISTINCT p FROM Patient p
