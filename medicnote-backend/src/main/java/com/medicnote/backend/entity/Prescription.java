@@ -8,12 +8,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(
-        name = "prescriptions",
-        uniqueConstraints = @UniqueConstraint(
-                columnNames = {"doctor_id", "patient_id", "date"}
-        )
-)
+@Table(name = "prescriptions", uniqueConstraints = @UniqueConstraint(columnNames = { "doctor_id", "patient_id",
+        "date" }))
 public class Prescription {
 
     @Id
@@ -35,34 +31,82 @@ public class Prescription {
     @JoinColumn(name = "patient_id", nullable = false)
     private Patient patient;
 
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "appointment_id", nullable = false, unique = true)
+    private Appointment appointment;
+
     @OneToMany(mappedBy = "prescription", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<PrescriptionItem> items = new ArrayList<>();
 
-    public Prescription() {}
+    public Prescription() {
+    }
 
     public void addItem(PrescriptionItem item) {
         items.add(item);
         item.setPrescription(this);
     }
 
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
+    public Long getId() {
+        return id;
+    }
 
-    public LocalDate getDate() { return date; }
-    public void setDate(LocalDate date) { this.date = date; }
+    public void setId(Long id) {
+        this.id = id;
+    }
 
-    public String getDiagnosis() { return diagnosis; }
-    public void setDiagnosis(String diagnosis) { this.diagnosis = diagnosis; }
+    public LocalDate getDate() {
+        return date;
+    }
 
-    public String getNotes() { return notes; }
-    public void setNotes(String notes) { this.notes = notes; }
+    public void setDate(LocalDate date) {
+        this.date = date;
+    }
 
-    public Doctor getDoctor() { return doctor; }
-    public void setDoctor(Doctor doctor) { this.doctor = doctor; }
+    public String getDiagnosis() {
+        return diagnosis;
+    }
 
-    public Patient getPatient() { return patient; }
-    public void setPatient(Patient patient) { this.patient = patient; }
+    public void setDiagnosis(String diagnosis) {
+        this.diagnosis = diagnosis;
+    }
 
-    public List<PrescriptionItem> getItems() { return items; }
-    public void setItems(List<PrescriptionItem> items) { this.items = items; }
+    public String getNotes() {
+        return notes;
+    }
+
+    public void setNotes(String notes) {
+        this.notes = notes;
+    }
+
+    public Doctor getDoctor() {
+        return doctor;
+    }
+
+    public void setDoctor(Doctor doctor) {
+        this.doctor = doctor;
+    }
+
+    public Patient getPatient() {
+        return patient;
+    }
+
+    public void setPatient(Patient patient) {
+        this.patient = patient;
+    }
+
+    public List<PrescriptionItem> getItems() {
+        return items;
+    }
+
+    public void setItems(List<PrescriptionItem> items) {
+        this.items = items;
+    }
+
+    public Appointment getAppointment() {
+        return appointment;
+    }
+
+    public void setAppointment(Appointment appointment) {
+        this.appointment = appointment;
+    }
 }

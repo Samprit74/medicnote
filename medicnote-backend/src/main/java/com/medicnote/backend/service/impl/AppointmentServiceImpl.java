@@ -19,6 +19,7 @@ import com.medicnote.backend.entity.Appointment;
 import com.medicnote.backend.entity.AppointmentStatus;
 import com.medicnote.backend.entity.Doctor;
 import com.medicnote.backend.entity.Patient;
+import com.medicnote.backend.entity.Prescription; // NEW
 import com.medicnote.backend.exception.AccessDeniedException;
 import com.medicnote.backend.exception.IllegalArgumentException;
 import com.medicnote.backend.exception.ResourceNotFoundException;
@@ -26,7 +27,10 @@ import com.medicnote.backend.mapper.AppointmentMapper;
 import com.medicnote.backend.repository.AppointmentRepository;
 import com.medicnote.backend.repository.DoctorRepository;
 import com.medicnote.backend.repository.PatientRepository;
+import com.medicnote.backend.repository.PrescriptionRepository; // NEW
 import com.medicnote.backend.service.AppointmentService;
+import com.medicnote.backend.service.EmailService; // NEW
+import com.medicnote.backend.util.PdfGenerator; // NEW
 
 @Service
 public class AppointmentServiceImpl implements AppointmentService {
@@ -36,14 +40,21 @@ public class AppointmentServiceImpl implements AppointmentService {
     private final PatientRepository patientRepository;
     private final AppointmentMapper appointmentMapper;
 
+    private final PrescriptionRepository prescriptionRepository; // NEW
+    private final EmailService emailService; // NEW
+
     public AppointmentServiceImpl(AppointmentRepository appointmentRepository,
                                   DoctorRepository doctorRepository,
                                   PatientRepository patientRepository,
-                                  AppointmentMapper appointmentMapper) {
+                                  AppointmentMapper appointmentMapper,
+                                  PrescriptionRepository prescriptionRepository, // NEW
+                                  EmailService emailService) { // NEW
         this.appointmentRepository = appointmentRepository;
         this.doctorRepository = doctorRepository;
         this.patientRepository = patientRepository;
         this.appointmentMapper = appointmentMapper;
+        this.prescriptionRepository = prescriptionRepository; // NEW
+        this.emailService = emailService; // NEW
     }
 
     @Override
@@ -122,9 +133,16 @@ public class AppointmentServiceImpl implements AppointmentService {
             throw new AccessDeniedException("Not allowed");
         }
 
-        appointment.setStatus(parseStatus(status));
+        AppointmentStatus newStatus = parseStatus(status); // NEW
+        appointment.setStatus(newStatus);
 
-        return appointmentMapper.toDTO(appointmentRepository.save(appointment));
+        Appointment saved = appointmentRepository.save(appointment); // NEW
+
+        if (newStatus == AppointmentStatus.COMPLETED) { // NEW
+            sendPrescriptionEmail(saved); // NEW
+        }
+
+        return appointmentMapper.toDTO(saved); // UPDATED
     }
 
     @Override
@@ -202,6 +220,20 @@ public class AppointmentServiceImpl implements AppointmentService {
         }
 
         return result;
+    }
+
+    private void sendPrescriptionEmail(Appointment appointment) { // NEW
+
+        Prescription prescription = prescriptionRepository
+                .findByAppointmentId(appointment.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Prescription not found"));
+
+        byte[] pdf = PdfGenerator.generatePrescriptionPdf(prescription);
+
+        String email = appointment.getPatient().getEmail();
+        String name = appointment.getPatient().getName();
+
+        emailService.sendPrescriptionEmail(email, name, pdf);
     }
 
     private void validateDate(LocalDate selectedDate, LocalDate today, LocalDate endDate) {
