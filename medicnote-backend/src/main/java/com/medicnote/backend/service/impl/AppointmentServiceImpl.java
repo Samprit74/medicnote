@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -15,51 +17,50 @@ import org.springframework.transaction.annotation.Transactional;
 import com.medicnote.backend.dto.request.AppointmentRequestDTO;
 import com.medicnote.backend.dto.response.AppointmentResponseDTO;
 import com.medicnote.backend.dto.response.AvailabilityResponseDTO;
-import com.medicnote.backend.entity.Appointment;
-import com.medicnote.backend.entity.AppointmentStatus;
-import com.medicnote.backend.entity.Doctor;
-import com.medicnote.backend.entity.Patient;
-import com.medicnote.backend.entity.Prescription; // NEW
+import com.medicnote.backend.entity.*;
 import com.medicnote.backend.exception.AccessDeniedException;
 import com.medicnote.backend.exception.IllegalArgumentException;
 import com.medicnote.backend.exception.ResourceNotFoundException;
 import com.medicnote.backend.mapper.AppointmentMapper;
-import com.medicnote.backend.repository.AppointmentRepository;
-import com.medicnote.backend.repository.DoctorRepository;
-import com.medicnote.backend.repository.PatientRepository;
-import com.medicnote.backend.repository.PrescriptionRepository; // NEW
+import com.medicnote.backend.repository.*;
 import com.medicnote.backend.service.AppointmentService;
-import com.medicnote.backend.service.EmailService; // NEW
-import com.medicnote.backend.util.PdfGenerator; // NEW
+import com.medicnote.backend.service.EmailService;
+import com.medicnote.backend.util.PdfGenerator;
 
 @Service
 public class AppointmentServiceImpl implements AppointmentService {
+
+    private static final Logger logger = LoggerFactory.getLogger(AppointmentServiceImpl.class);
 
     private final AppointmentRepository appointmentRepository;
     private final DoctorRepository doctorRepository;
     private final PatientRepository patientRepository;
     private final AppointmentMapper appointmentMapper;
-
-    private final PrescriptionRepository prescriptionRepository; // NEW
-    private final EmailService emailService; // NEW
+    private final PrescriptionRepository prescriptionRepository;
+    private final EmailService emailService;
+    private final UserRepository userRepository;
 
     public AppointmentServiceImpl(AppointmentRepository appointmentRepository,
-                                  DoctorRepository doctorRepository,
-                                  PatientRepository patientRepository,
-                                  AppointmentMapper appointmentMapper,
-                                  PrescriptionRepository prescriptionRepository, // NEW
-                                  EmailService emailService) { // NEW
+            DoctorRepository doctorRepository,
+            PatientRepository patientRepository,
+            AppointmentMapper appointmentMapper,
+            PrescriptionRepository prescriptionRepository,
+            EmailService emailService,
+            UserRepository userRepository) {
         this.appointmentRepository = appointmentRepository;
         this.doctorRepository = doctorRepository;
         this.patientRepository = patientRepository;
         this.appointmentMapper = appointmentMapper;
-        this.prescriptionRepository = prescriptionRepository; // NEW
-        this.emailService = emailService; // NEW
+        this.prescriptionRepository = prescriptionRepository;
+        this.emailService = emailService;
+        this.userRepository = userRepository;
     }
 
     @Override
     @Transactional
-    public AppointmentResponseDTO bookAppointment(AppointmentRequestDTO request, Long patientId) {
+    public AppointmentResponseDTO bookAppointment(AppointmentRequestDTO request, Long userId) {
+
+        logger.info("Booking appointment for user {} with doctor {}", userId, request.getDoctorId());
 
         LocalDate today = LocalDate.now();
         LocalDate endDate = today.plusWeeks(2);
@@ -67,11 +68,23 @@ public class AppointmentServiceImpl implements AppointmentService {
 
         validateDate(selectedDate, today, endDate);
 
-        Doctor doctor = doctorRepository.findById(request.getDoctorId())
-                .orElseThrow(() -> new ResourceNotFoundException("Doctor not found"));
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> {
+                    logger.error("User not found: {}", userId);
+                    return new ResourceNotFoundException("User not found");
+                });
 
-        Patient patient = patientRepository.findById(patientId)
-                .orElseThrow(() -> new ResourceNotFoundException("Patient not found"));
+        Patient patient = user.getPatient();
+        if (patient == null) {
+            logger.error("User {} is not a patient", userId);
+            throw new AccessDeniedException("Not a patient");
+        }
+
+        Doctor doctor = doctorRepository.findById(request.getDoctorId())
+                .orElseThrow(() -> {
+                    logger.error("Doctor not found: {}", request.getDoctorId());
+                    return new ResourceNotFoundException("Doctor not found");
+                });
 
         List<Appointment> lockedAppointments =
                 appointmentRepository.findByDoctorIdAndDateForUpdate(doctor.getId(), selectedDate);
@@ -89,70 +102,169 @@ public class AppointmentServiceImpl implements AppointmentService {
         appointment.setQueueNumber(queue);
         appointment.setStatus(AppointmentStatus.PENDING);
 
+        logger.info("Appointment created with queue {} at {}", queue, time);
+
         return appointmentMapper.toDTO(appointmentRepository.save(appointment));
     }
 
     @Override
-    public List<AppointmentResponseDTO> getDoctorQueue(Long doctorId) {
+    public List<AppointmentResponseDTO> getDoctorQueue(Long userId) {
+
+        logger.info("Fetching doctor queue for user {}", userId);
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> {
+                    logger.error("User not found: {}", userId);
+                    return new ResourceNotFoundException("User not found");
+                });
+
+        Doctor doctor = user.getDoctor();
+        if (doctor == null) {
+            logger.error("User {} is not a doctor", userId);
+            throw new AccessDeniedException("Not a doctor");
+        }
+
         return appointmentRepository
-                .findByDoctorIdAndAppointmentDateOrderByQueueNumberAsc(doctorId, LocalDate.now())
+                .findByDoctorIdAndAppointmentDateOrderByQueueNumberAsc(doctor.getId(), LocalDate.now())
                 .stream()
                 .map(appointmentMapper::toDTO)
                 .collect(Collectors.toList());
     }
 
     @Override
-    public Page<AppointmentResponseDTO> getAppointmentsByDoctor(Long doctorId, int page, int size) {
-        return appointmentRepository.findByDoctorId(doctorId, PageRequest.of(page, size))
+    public Page<AppointmentResponseDTO> getAppointmentsByDoctor(Long userId, int page, int size) {
+
+        logger.info("Fetching appointments for doctor user {}", userId);
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> {
+                    logger.error("User not found: {}", userId);
+                    return new ResourceNotFoundException("User not found");
+                });
+
+        Doctor doctor = user.getDoctor();
+        if (doctor == null) {
+            logger.error("User {} is not a doctor", userId);
+            throw new AccessDeniedException("Not a doctor");
+        }
+
+        return appointmentRepository.findByDoctorId(doctor.getId(), PageRequest.of(page, size))
                 .map(appointmentMapper::toDTO);
     }
 
     @Override
-    public Page<AppointmentResponseDTO> getAppointmentsByPatient(Long patientId, int page, int size) {
-        return appointmentRepository.findByPatientId(patientId, PageRequest.of(page, size))
+    public Page<AppointmentResponseDTO> getAppointmentsByPatient(Long userId, int page, int size) {
+
+        logger.info("Fetching appointments for patient user {}", userId);
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> {
+                    logger.error("User not found: {}", userId);
+                    return new ResourceNotFoundException("User not found");
+                });
+
+        Patient patient = user.getPatient();
+        if (patient == null) {
+            logger.error("User {} is not a patient", userId);
+            throw new AccessDeniedException("Not a patient");
+        }
+
+        return appointmentRepository.findByPatientId(patient.getId(), PageRequest.of(page, size))
                 .map(appointmentMapper::toDTO);
     }
 
     @Override
-    public Page<AppointmentResponseDTO> getPatientHistory(Long patientId, int page, int size) {
+    public Page<AppointmentResponseDTO> getPatientHistory(Long userId, int page, int size) {
+
+        logger.info("Fetching appointment history for patient user {}", userId);
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> {
+                    logger.error("User not found: {}", userId);
+                    return new ResourceNotFoundException("User not found");
+                });
+
+        Patient patient = user.getPatient();
+        if (patient == null) {
+            logger.error("User {} is not a patient", userId);
+            throw new AccessDeniedException("Not a patient");
+        }
+
         return appointmentRepository
                 .findByPatientIdAndAppointmentDateBefore(
-                        patientId,
+                        patient.getId(),
                         LocalDate.now(),
                         PageRequest.of(page, size))
                 .map(appointmentMapper::toDTO);
     }
 
     @Override
-    public AppointmentResponseDTO updateStatus(Long appointmentId, String status, Long doctorId) {
+    public AppointmentResponseDTO updateStatus(Long appointmentId, String status, Long userId) {
+
+        logger.info("Updating status for appointment {} by user {}", appointmentId, userId);
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> {
+                    logger.error("User not found: {}", userId);
+                    return new ResourceNotFoundException("User not found");
+                });
+
+        Doctor doctor = user.getDoctor();
+        if (doctor == null) {
+            logger.error("User {} is not a doctor", userId);
+            throw new AccessDeniedException("Not a doctor");
+        }
 
         Appointment appointment = appointmentRepository.findById(appointmentId)
-                .orElseThrow(() -> new ResourceNotFoundException("Appointment not found"));
+                .orElseThrow(() -> {
+                    logger.error("Appointment not found: {}", appointmentId);
+                    return new ResourceNotFoundException("Appointment not found");
+                });
 
-        if (!appointment.getDoctor().getId().equals(doctorId)) {
+        if (!appointment.getDoctor().getId().equals(doctor.getId())) {
+            logger.error("Doctor {} not allowed to update appointment {}", doctor.getId(), appointmentId);
             throw new AccessDeniedException("Not allowed");
         }
 
-        AppointmentStatus newStatus = parseStatus(status); // NEW
+        AppointmentStatus newStatus = parseStatus(status);
         appointment.setStatus(newStatus);
 
-        Appointment saved = appointmentRepository.save(appointment); // NEW
+        Appointment saved = appointmentRepository.save(appointment);
 
-        if (newStatus == AppointmentStatus.COMPLETED) { // NEW
-            sendPrescriptionEmail(saved); // NEW
+        if (newStatus == AppointmentStatus.COMPLETED) {
+            logger.info("Appointment {} completed. Sending prescription email.", appointmentId);
+            sendPrescriptionEmail(saved);
         }
 
-        return appointmentMapper.toDTO(saved); // UPDATED
+        return appointmentMapper.toDTO(saved);
     }
 
     @Override
     @Transactional
-    public void cancelAppointment(Long appointmentId, Long patientId) {
+    public void cancelAppointment(Long appointmentId, Long userId) {
+
+        logger.info("Cancelling appointment {} by user {}", appointmentId, userId);
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> {
+                    logger.error("User not found: {}", userId);
+                    return new ResourceNotFoundException("User not found");
+                });
+
+        Patient patient = user.getPatient();
+        if (patient == null) {
+            logger.error("User {} is not a patient", userId);
+            throw new AccessDeniedException("Not a patient");
+        }
 
         Appointment appointment = appointmentRepository.findById(appointmentId)
-                .orElseThrow(() -> new ResourceNotFoundException("Appointment not found"));
+                .orElseThrow(() -> {
+                    logger.error("Appointment not found: {}", appointmentId);
+                    return new ResourceNotFoundException("Appointment not found");
+                });
 
-        if (!appointment.getPatient().getId().equals(patientId)) {
+        if (!appointment.getPatient().getId().equals(patient.getId())) {
+            logger.error("Patient {} not allowed to cancel appointment {}", patient.getId(), appointmentId);
             throw new AccessDeniedException("Not allowed");
         }
 
@@ -170,7 +282,8 @@ public class AppointmentServiceImpl implements AppointmentService {
         int queue = 1;
 
         for (Appointment appt : appointments) {
-            if (appt.getStatus() == AppointmentStatus.CANCELLED) continue;
+            if (appt.getStatus() == AppointmentStatus.CANCELLED)
+                continue;
 
             appt.setQueueNumber(queue);
             appt.setAppointmentTime(calculateTime(queue));
@@ -183,8 +296,13 @@ public class AppointmentServiceImpl implements AppointmentService {
     @Override
     public List<AvailabilityResponseDTO> getAvailability(Long doctorId) {
 
+        logger.info("Fetching availability for doctor {}", doctorId);
+
         Doctor doctor = doctorRepository.findById(doctorId)
-                .orElseThrow(() -> new ResourceNotFoundException("Doctor not found"));
+                .orElseThrow(() -> {
+                    logger.error("Doctor not found: {}", doctorId);
+                    return new ResourceNotFoundException("Doctor not found");
+                });
 
         LocalDate today = LocalDate.now();
         LocalDate endDate = today.plusWeeks(2);
@@ -195,8 +313,7 @@ public class AppointmentServiceImpl implements AppointmentService {
         Map<LocalDate, Long> countMap = data.stream()
                 .collect(Collectors.toMap(
                         row -> (LocalDate) row[0],
-                        row -> (Long) row[1]
-                ));
+                        row -> (Long) row[1]));
 
         List<AvailabilityResponseDTO> result = new ArrayList<>();
 
@@ -222,7 +339,7 @@ public class AppointmentServiceImpl implements AppointmentService {
         return result;
     }
 
-    private void sendPrescriptionEmail(Appointment appointment) { // NEW
+    private void sendPrescriptionEmail(Appointment appointment) {
 
         Prescription prescription = prescriptionRepository
                 .findByAppointmentId(appointment.getId())

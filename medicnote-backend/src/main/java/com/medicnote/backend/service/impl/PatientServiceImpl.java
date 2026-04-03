@@ -12,9 +12,13 @@ import org.springframework.transaction.annotation.Transactional;
 import com.medicnote.backend.dto.request.PatientRequestDTO;
 import com.medicnote.backend.dto.response.PatientResponseDTO;
 import com.medicnote.backend.entity.Patient;
+import com.medicnote.backend.entity.User;
+import com.medicnote.backend.entity.Doctor;
 import com.medicnote.backend.exception.ResourceNotFoundException;
+import com.medicnote.backend.exception.AccessDeniedException;
 import com.medicnote.backend.mapper.PatientMapper;
 import com.medicnote.backend.repository.PatientRepository;
+import com.medicnote.backend.repository.UserRepository;
 import com.medicnote.backend.service.PatientService;
 
 @Service
@@ -25,27 +29,29 @@ public class PatientServiceImpl implements PatientService {
 
     private final PatientRepository repository;
     private final PatientMapper mapper;
+    private final UserRepository userRepository;
 
-    public PatientServiceImpl(PatientRepository repository, PatientMapper mapper) {
+    public PatientServiceImpl(PatientRepository repository,
+            PatientMapper mapper,
+            UserRepository userRepository) {
         this.repository = repository;
         this.mapper = mapper;
+        this.userRepository = userRepository;
     }
 
     @Override
-    public PatientResponseDTO getById(Long id) {
+    public PatientResponseDTO getById(Long userId) {
 
-        Patient patient = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Patient not found"));
+        Patient patient = resolvePatient(userId);
 
         return mapper.toDTO(patient);
     }
 
     @Override
     @Transactional
-    public PatientResponseDTO update(Long id, PatientRequestDTO request) {
+    public PatientResponseDTO update(Long userId, PatientRequestDTO request) {
 
-        Patient patient = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Patient not found"));
+        Patient patient = resolvePatient(userId);
 
         patient.setName(request.getName());
         patient.setEmail(request.getEmail());
@@ -75,42 +81,74 @@ public class PatientServiceImpl implements PatientService {
     }
 
     @Override
-    public Page<PatientResponseDTO> getPatientsByDoctorPaginated(Long doctorId, int page, int size) {
+    public Page<PatientResponseDTO> getPatientsByDoctorPaginated(Long userId, int page, int size) {
+
+        Long doctorId = resolveDoctorId(userId);
 
         return repository.findDistinctByAppointmentsDoctorId(
                 doctorId,
-                PageRequest.of(page, size)
-        ).map(mapper::toDTO);
+                PageRequest.of(page, size)).map(mapper::toDTO);
     }
 
     @Override
-    public Page<PatientResponseDTO> searchPatientsByDoctorPaginated(Long doctorId, String keyword, int page, int size) {
+    public Page<PatientResponseDTO> searchPatientsByDoctorPaginated(Long userId, String keyword, int page, int size) {
+
+        Long doctorId = resolveDoctorId(userId);
 
         return repository.searchPatientsByDoctorPaginated(
                 doctorId,
                 keyword,
-                PageRequest.of(page, size)
-        ).map(mapper::toDTO);
+                PageRequest.of(page, size)).map(mapper::toDTO);
     }
 
     @Override
-    public Page<PatientResponseDTO> getTodayPatientsPaginated(Long doctorId, LocalDate date, int page, int size) {
+    public Page<PatientResponseDTO> getTodayPatientsPaginated(Long userId, LocalDate date, int page, int size) {
+
+        Long doctorId = resolveDoctorId(userId);
 
         return repository.findTodayPatientsByDoctorPaginated(
                 doctorId,
                 date,
-                PageRequest.of(page, size)
-        ).map(mapper::toDTO);
+                PageRequest.of(page, size)).map(mapper::toDTO);
     }
 
     @Override
-    public Page<PatientResponseDTO> getWeeklyPatients(Long doctorId, LocalDate start, LocalDate end, int page, int size) {
+    public Page<PatientResponseDTO> getWeeklyPatients(Long userId, LocalDate start, LocalDate end, int page, int size) {
+
+        Long doctorId = resolveDoctorId(userId);
 
         return repository.findWeeklyPatientsByDoctor(
                 doctorId,
                 start,
                 end,
-                PageRequest.of(page, size)
-        ).map(mapper::toDTO);
+                PageRequest.of(page, size)).map(mapper::toDTO);
+    }
+
+    private Patient resolvePatient(Long userId) {
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        Patient patient = user.getPatient();
+
+        if (patient == null) {
+            throw new AccessDeniedException("Not a patient");
+        }
+
+        return patient;
+    }
+
+    private Long resolveDoctorId(Long userId) {
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        Doctor doctor = user.getDoctor();
+
+        if (doctor == null) {
+            throw new AccessDeniedException("Not a doctor");
+        }
+
+        return doctor.getId();
     }
 }

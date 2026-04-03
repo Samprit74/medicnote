@@ -25,14 +25,16 @@ public class DashboardController {
     @GetMapping("/doctor/me")
     @PreAuthorize("hasAnyRole('DOCTOR','ADMIN')")
     public ResponseEntity<DoctorDashboardDTO> getDoctorDashboard(Authentication auth) {
-        Long doctorId = ((CustomUserDetails) auth.getPrincipal()).getId();
-        return ResponseEntity.ok(dashboardService.getDoctorDashboard(doctorId));
+
+        Long userId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        return ResponseEntity.ok(dashboardService.getDoctorDashboard(userId));
     }
 
     @GetMapping("/patient/me")
     @PreAuthorize("hasAnyRole('PATIENT','ADMIN')")
     public ResponseEntity<PatientDashboardDTO> getPatientDashboard(Authentication auth) {
-        Long patientId = ((CustomUserDetails) auth.getPrincipal()).getId();
-        return ResponseEntity.ok(dashboardService.getPatientDashboard(patientId));
+
+        Long userId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        return ResponseEntity.ok(dashboardService.getPatientDashboard(userId));
     }
 }

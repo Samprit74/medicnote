@@ -16,12 +16,16 @@ import com.medicnote.backend.dto.response.PrescriptionResponseDTO;
 import com.medicnote.backend.entity.Appointment;
 import com.medicnote.backend.entity.Prescription;
 import com.medicnote.backend.entity.PrescriptionItem;
+import com.medicnote.backend.entity.User;
+import com.medicnote.backend.entity.Doctor;
+import com.medicnote.backend.entity.Patient;
 import com.medicnote.backend.exception.AccessDeniedException;
 import com.medicnote.backend.exception.IllegalArgumentException;
 import com.medicnote.backend.exception.ResourceNotFoundException;
 import com.medicnote.backend.mapper.PrescriptionMapper;
 import com.medicnote.backend.repository.AppointmentRepository;
 import com.medicnote.backend.repository.PrescriptionRepository;
+import com.medicnote.backend.repository.UserRepository;
 import com.medicnote.backend.service.PrescriptionService;
 import com.medicnote.backend.util.PdfGenerator;
 
@@ -34,23 +38,30 @@ public class PrescriptionServiceImpl implements PrescriptionService {
     private final PrescriptionRepository repository;
     private final AppointmentRepository appointmentRepository;
     private final PrescriptionMapper mapper;
+    private final UserRepository userRepository;
 
     public PrescriptionServiceImpl(PrescriptionRepository repository,
                                   AppointmentRepository appointmentRepository,
-                                  PrescriptionMapper mapper) {
+                                  PrescriptionMapper mapper,
+                                  UserRepository userRepository) {
         this.repository = repository;
         this.appointmentRepository = appointmentRepository;
         this.mapper = mapper;
+        this.userRepository = userRepository;
     }
 
     @Override
     @Transactional
-    public PrescriptionResponseDTO create(PrescriptionRequestDTO request, Long doctorId) {
+    public PrescriptionResponseDTO create(PrescriptionRequestDTO request, Long userId) {
+
+        logger.info("Creating prescription for user {}", userId);
+
+        Doctor doctor = resolveDoctor(userId);
 
         Appointment appointment = appointmentRepository.findById(request.getAppointmentId())
                 .orElseThrow(() -> new ResourceNotFoundException("Appointment not found"));
 
-        validateDoctor(appointment, doctorId);
+        validateDoctor(appointment, doctor.getId());
         checkDuplicate(appointment);
 
         Prescription prescription = buildPrescription(appointment, request);
@@ -61,12 +72,16 @@ public class PrescriptionServiceImpl implements PrescriptionService {
     @Transactional
     public PrescriptionResponseDTO createUsingAppointment(Long appointmentId,
                                                           PrescriptionRequestDTO request,
-                                                          Long doctorId) {
+                                                          Long userId) {
+
+        logger.info("Creating prescription using appointment {} by user {}", appointmentId, userId);
+
+        Doctor doctor = resolveDoctor(userId);
 
         Appointment appointment = appointmentRepository.findById(appointmentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Appointment not found"));
 
-        validateDoctor(appointment, doctorId);
+        validateDoctor(appointment, doctor.getId());
         checkDuplicate(appointment);
 
         Prescription prescription = buildPrescription(appointment, request);
@@ -75,12 +90,16 @@ public class PrescriptionServiceImpl implements PrescriptionService {
 
     @Override
     @Transactional
-    public PrescriptionResponseDTO createUsingEmail(PrescriptionByEmailRequestDTO request, Long doctorId) {
+    public PrescriptionResponseDTO createUsingEmail(PrescriptionByEmailRequestDTO request, Long userId) {
+
+        logger.info("Creating prescription via email for user {}", userId);
+
+        Doctor doctor = resolveDoctor(userId);
 
         Appointment appointment = appointmentRepository.findById(request.getAppointmentId())
                 .orElseThrow(() -> new ResourceNotFoundException("Appointment not found"));
 
-        validateDoctor(appointment, doctorId);
+        validateDoctor(appointment, doctor.getId());
 
         if (!appointment.getPatient().getEmail().equals(request.getPatientEmail())) {
             throw new IllegalArgumentException("Patient mismatch");
@@ -93,52 +112,62 @@ public class PrescriptionServiceImpl implements PrescriptionService {
     }
 
     @Override
-    public Page<PrescriptionResponseDTO> getByPatient(Long patientId, int page, int size) {
-        return repository.findByPatientIdOrderByDateDesc(patientId, PageRequest.of(page, size))
+    public Page<PrescriptionResponseDTO> getByPatient(Long userId, int page, int size) {
+
+        Patient patient = resolvePatient(userId);
+
+        return repository.findByPatientIdOrderByDateDesc(patient.getId(), PageRequest.of(page, size))
                 .map(mapper::toDTO);
     }
 
     @Override
-    public Page<PrescriptionResponseDTO> getByPatientAndDate(Long patientId, LocalDate date, int page, int size) {
-        return repository.findByPatientIdAndDate(patientId, date, PageRequest.of(page, size))
+    public Page<PrescriptionResponseDTO> getByPatientAndDate(Long userId, LocalDate date, int page, int size) {
+
+        Patient patient = resolvePatient(userId);
+
+        return repository.findByPatientIdAndDate(patient.getId(), date, PageRequest.of(page, size))
                 .map(mapper::toDTO);
     }
 
     @Override
-    public Page<PrescriptionResponseDTO> getByPatientAndDoctor(Long patientId, String doctorName, int page, int size) {
+    public Page<PrescriptionResponseDTO> getByPatientAndDoctor(Long userId, String doctorName, int page, int size) {
+
+        Patient patient = resolvePatient(userId);
+
         return repository.findByPatientIdAndDoctorNameContainingIgnoreCase(
-                patientId, doctorName, PageRequest.of(page, size))
+                patient.getId(), doctorName, PageRequest.of(page, size))
                 .map(mapper::toDTO);
     }
 
     @Override
-    public Page<PrescriptionResponseDTO> getByPatientAndDateRange(Long patientId, String start, String end, int page, int size) {
+    public Page<PrescriptionResponseDTO> getByPatientAndDateRange(Long userId, String start, String end, int page, int size) {
+
+        Patient patient = resolvePatient(userId);
+
         return repository.findByPatientIdAndDateBetweenOrderByDateDesc(
-                patientId,
+                patient.getId(),
                 LocalDate.parse(start),
                 LocalDate.parse(end),
-                PageRequest.of(page, size)
-        ).map(mapper::toDTO);
+                PageRequest.of(page, size))
+                .map(mapper::toDTO);
     }
 
     @Override
     public Page<PrescriptionResponseDTO> getDoctorPatientPrescriptions(Long doctorId, Long patientId, int page, int size) {
-
         return repository.findByDoctorIdAndPatientIdOrderByDateDesc(
                 doctorId,
                 patientId,
-                PageRequest.of(page, size)
-        ).map(mapper::toDTO);
+                PageRequest.of(page, size))
+                .map(mapper::toDTO);
     }
 
     @Override
     public Page<PrescriptionResponseDTO> getDoctorPrescriptionsByDate(Long doctorId, LocalDate date, int page, int size) {
-
         return repository.findByDoctorIdAndDate(
                 doctorId,
                 date,
-                PageRequest.of(page, size)
-        ).map(mapper::toDTO);
+                PageRequest.of(page, size))
+                .map(mapper::toDTO);
     }
 
     @Override
@@ -159,6 +188,32 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         return PdfGenerator.generatePrescriptionPdf(prescription);
     }
 
+    private Doctor resolveDoctor(Long userId) {
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        Doctor doctor = user.getDoctor();
+        if (doctor == null) {
+            throw new AccessDeniedException("Not a doctor");
+        }
+
+        return doctor;
+    }
+
+    private Patient resolvePatient(Long userId) {
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        Patient patient = user.getPatient();
+        if (patient == null) {
+            throw new AccessDeniedException("Not a patient");
+        }
+
+        return patient;
+    }
+
     private void validateDoctor(Appointment appointment, Long doctorId) {
         if (!appointment.getDoctor().getId().equals(doctorId)) {
             throw new AccessDeniedException("Not allowed");
@@ -166,19 +221,18 @@ public class PrescriptionServiceImpl implements PrescriptionService {
     }
 
     private void checkDuplicate(Appointment appointment) {
-        boolean exists = repository.existsByDoctorIdAndPatientIdAndDate(
-                appointment.getDoctor().getId(),
-                appointment.getPatient().getId(),
-                appointment.getAppointmentDate());
+
+        boolean exists = repository.existsByAppointmentId(appointment.getId());
 
         if (exists) {
-            throw new IllegalArgumentException("Prescription already exists");
+            throw new IllegalArgumentException("Prescription already exists for this appointment");
         }
     }
 
     private Prescription buildPrescription(Appointment appointment, PrescriptionRequestDTO request) {
 
         Prescription prescription = new Prescription();
+        prescription.setAppointment(appointment);
         prescription.setDoctor(appointment.getDoctor());
         prescription.setPatient(appointment.getPatient());
         prescription.setDate(appointment.getAppointmentDate());
@@ -200,6 +254,7 @@ public class PrescriptionServiceImpl implements PrescriptionService {
     private Prescription buildPrescriptionFromEmail(Appointment appointment, PrescriptionByEmailRequestDTO request) {
 
         Prescription prescription = new Prescription();
+        prescription.setAppointment(appointment);
         prescription.setDoctor(appointment.getDoctor());
         prescription.setPatient(appointment.getPatient());
         prescription.setDate(appointment.getAppointmentDate());

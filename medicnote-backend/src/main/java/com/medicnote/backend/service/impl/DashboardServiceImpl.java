@@ -16,11 +16,12 @@ import com.medicnote.backend.dto.dashboard.UpcomingAppointmentDTO;
 import com.medicnote.backend.entity.AppointmentStatus;
 import com.medicnote.backend.entity.Doctor;
 import com.medicnote.backend.entity.Patient;
+import com.medicnote.backend.entity.User;
+import com.medicnote.backend.exception.AccessDeniedException;
 import com.medicnote.backend.exception.ResourceNotFoundException;
 import com.medicnote.backend.repository.AppointmentRepository;
-import com.medicnote.backend.repository.DoctorRepository;
-import com.medicnote.backend.repository.PatientRepository;
 import com.medicnote.backend.repository.PrescriptionRepository;
+import com.medicnote.backend.repository.UserRepository;
 import com.medicnote.backend.service.DashboardService;
 
 @Service
@@ -28,51 +29,40 @@ public class DashboardServiceImpl implements DashboardService {
 
     private static final Logger logger = LoggerFactory.getLogger(DashboardServiceImpl.class);
 
-    private final DoctorRepository doctorRepository;
-    private final PatientRepository patientRepository;
     private final AppointmentRepository appointmentRepository;
     private final PrescriptionRepository prescriptionRepository;
+    private final UserRepository userRepository;
 
-    public DashboardServiceImpl(DoctorRepository doctorRepository,
-                               PatientRepository patientRepository,
-                               AppointmentRepository appointmentRepository,
-                               PrescriptionRepository prescriptionRepository) {
-        this.doctorRepository = doctorRepository;
-        this.patientRepository = patientRepository;
+    public DashboardServiceImpl(AppointmentRepository appointmentRepository,
+            PrescriptionRepository prescriptionRepository,
+            UserRepository userRepository) {
         this.appointmentRepository = appointmentRepository;
         this.prescriptionRepository = prescriptionRepository;
+        this.userRepository = userRepository;
     }
 
     @Override
-    public DoctorDashboardDTO getDoctorDashboard(Long doctorId) {
+    public DoctorDashboardDTO getDoctorDashboard(Long userId) {
 
-        logger.info("Fetching dashboard for doctor {}", doctorId);
+        logger.info("Fetching dashboard for user {}", userId);
 
-        Doctor doctor = doctorRepository.findById(doctorId)
-                .orElseThrow(() -> new ResourceNotFoundException("Doctor not found"));
+        Doctor doctor = resolveDoctor(userId);
+        Long doctorId = doctor.getId();
 
         LocalDate today = LocalDate.now();
         LocalDate endDate = today.plusWeeks(2);
 
-        long totalPatients = safeCount(() ->
-                appointmentRepository.countDistinctPatientIdByDoctor_Id(doctorId)
-        );
+        long totalPatients = safeCount(() -> appointmentRepository.countDistinctPatientIdByDoctor_Id(doctorId));
 
-        long todayAppointments = safeCount(() ->
-                appointmentRepository.countByDoctorIdAndAppointmentDateAndStatusNot(
-                        doctorId,
-                        today,
-                        AppointmentStatus.CANCELLED
-                )
-        );
+        long todayAppointments = safeCount(() -> appointmentRepository.countByDoctorIdAndAppointmentDateAndStatusNot(
+                doctorId,
+                today,
+                AppointmentStatus.CANCELLED));
 
-        long completedAppointments = safeCount(() ->
-                appointmentRepository.countByDoctorIdAndAppointmentDateAndStatus(
-                        doctorId,
-                        today,
-                        AppointmentStatus.COMPLETED
-                )
-        );
+        long completedAppointments = safeCount(() -> appointmentRepository.countByDoctorIdAndAppointmentDateAndStatus(
+                doctorId,
+                today,
+                AppointmentStatus.COMPLETED));
 
         long totalAppointmentsInWindow = 0;
         long completedAppointmentsInWindow = 0;
@@ -97,8 +87,7 @@ public class DashboardServiceImpl implements DashboardService {
                     .findTop2ByDoctorIdAndAppointmentDateAndStatusOrderByQueueNumberAsc(
                             doctorId,
                             today,
-                            AppointmentStatus.PENDING
-                    )
+                            AppointmentStatus.PENDING)
                     .stream()
                     .map(a -> {
                         NextAppointmentDTO dto = new NextAppointmentDTO();
@@ -126,20 +115,16 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
     @Override
-    public PatientDashboardDTO getPatientDashboard(Long patientId) {
+    public PatientDashboardDTO getPatientDashboard(Long userId) {
 
-        logger.info("Fetching dashboard for patient {}", patientId);
+        logger.info("Fetching dashboard for user {}", userId);
 
-        Patient patient = patientRepository.findById(patientId)
-                .orElseThrow(() -> new ResourceNotFoundException("Patient not found"));
+        Patient patient = resolvePatient(userId);
+        Long patientId = patient.getId();
 
-        long totalAppointments = safeCount(() ->
-                appointmentRepository.countByPatientId(patientId)
-        );
+        long totalAppointments = safeCount(() -> appointmentRepository.countByPatientId(patientId));
 
-        long totalPrescriptions = safeCount(() ->
-                prescriptionRepository.countByPatientId(patientId)
-        );
+        long totalPrescriptions = safeCount(() -> prescriptionRepository.countByPatientId(patientId));
 
         List<UpcomingAppointmentDTO> upcomingAppointments;
 
@@ -148,8 +133,7 @@ public class DashboardServiceImpl implements DashboardService {
                     .findTop3ByPatientIdAndAppointmentDateAfterAndStatusOrderByAppointmentDateAsc(
                             patientId,
                             LocalDate.now(),
-                            AppointmentStatus.PENDING
-                    )
+                            AppointmentStatus.PENDING)
                     .stream()
                     .map(a -> {
                         UpcomingAppointmentDTO dto = new UpcomingAppointmentDTO();
@@ -172,6 +156,34 @@ public class DashboardServiceImpl implements DashboardService {
         dto.setUpcomingAppointments(upcomingAppointments);
 
         return dto;
+    }
+
+    private Doctor resolveDoctor(Long userId) {
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        Doctor doctor = user.getDoctor();
+
+        if (doctor == null) {
+            throw new AccessDeniedException("Not a doctor");
+        }
+
+        return doctor;
+    }
+
+    private Patient resolvePatient(Long userId) {
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        Patient patient = user.getPatient();
+
+        if (patient == null) {
+            throw new AccessDeniedException("Not a patient");
+        }
+
+        return patient;
     }
 
     private long safeCount(Supplier<Long> supplier) {

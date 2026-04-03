@@ -61,8 +61,6 @@ public class PatientController {
         service.delete(id);
     }
 
-    // ================= DOCTOR =================
-
     @GetMapping("/doctor/me")
     @PreAuthorize("hasRole('DOCTOR')")
     public Page<PatientResponseDTO> getDoctorPatients(
@@ -70,8 +68,8 @@ public class PatientController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "7") int size) {
 
-        Long doctorId = ((CustomUserDetails) auth.getPrincipal()).getId();
-        return service.getPatientsByDoctorPaginated(doctorId, page, size);
+        Long userId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        return service.getPatientsByDoctorPaginated(userId, page, size);
     }
 
     @GetMapping("/doctor/me/search")
@@ -82,8 +80,8 @@ public class PatientController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "7") int size) {
 
-        Long doctorId = ((CustomUserDetails) auth.getPrincipal()).getId();
-        return service.searchPatientsByDoctorPaginated(doctorId, keyword, page, size);
+        Long userId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        return service.searchPatientsByDoctorPaginated(userId, keyword, page, size);
     }
 
     @GetMapping("/doctor/me/today")
@@ -94,8 +92,8 @@ public class PatientController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "7") int size) {
 
-        Long doctorId = ((CustomUserDetails) auth.getPrincipal()).getId();
-        return service.getTodayPatientsPaginated(doctorId, date, page, size);
+        Long userId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        return service.getTodayPatientsPaginated(userId, date, page, size);
     }
 
     @GetMapping("/doctor/me/weekly")
@@ -107,7 +105,7 @@ public class PatientController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "7") int size) {
 
-        Long doctorId = ((CustomUserDetails) auth.getPrincipal()).getId();
-        return service.getWeeklyPatients(doctorId, start, end, page, size);
+        Long userId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        return service.getWeeklyPatients(userId, start, end, page, size);
     }
 }

@@ -5,14 +5,7 @@ import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import com.medicnote.backend.dto.request.AppointmentRequestDTO;
 import com.medicnote.backend.dto.response.AppointmentResponseDTO;
@@ -37,16 +30,16 @@ public class AppointmentController {
     public AppointmentResponseDTO bookAppointment(@Valid @RequestBody AppointmentRequestDTO request,
                                                   Authentication auth) {
 
-        Long patientId = ((CustomUserDetails) auth.getPrincipal()).getId();
-        return appointmentService.bookAppointment(request, patientId);
+        Long userId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        return appointmentService.bookAppointment(request, userId);
     }
 
     @GetMapping("/doctor/me/queue")
     @PreAuthorize("hasAnyRole('DOCTOR','ADMIN')")
     public List<AppointmentResponseDTO> getDoctorQueue(Authentication auth) {
 
-        Long doctorId = ((CustomUserDetails) auth.getPrincipal()).getId();
-        return appointmentService.getDoctorQueue(doctorId);
+        Long userId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        return appointmentService.getDoctorQueue(userId);
     }
 
     @GetMapping("/doctor/me")
@@ -56,8 +49,8 @@ public class AppointmentController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
 
-        Long doctorId = ((CustomUserDetails) auth.getPrincipal()).getId();
-        return appointmentService.getAppointmentsByDoctor(doctorId, page, size);
+        Long userId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        return appointmentService.getAppointmentsByDoctor(userId, page, size);
     }
 
     @GetMapping("/patient/me")
@@ -67,8 +60,8 @@ public class AppointmentController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
 
-        Long patientId = ((CustomUserDetails) auth.getPrincipal()).getId();
-        return appointmentService.getAppointmentsByPatient(patientId, page, size);
+        Long userId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        return appointmentService.getAppointmentsByPatient(userId, page, size);
     }
 
     @GetMapping("/patient/me/history")
@@ -78,8 +71,8 @@ public class AppointmentController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
 
-        Long patientId = ((CustomUserDetails) auth.getPrincipal()).getId();
-        return appointmentService.getPatientHistory(patientId, page, size);
+        Long userId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        return appointmentService.getPatientHistory(userId, page, size);
     }
 
     @PutMapping("/{appointmentId}/status")
@@ -88,8 +81,8 @@ public class AppointmentController {
                                                @RequestParam String status,
                                                Authentication auth) {
 
-        Long doctorId = ((CustomUserDetails) auth.getPrincipal()).getId();
-        return appointmentService.updateStatus(appointmentId, status, doctorId);
+        Long userId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        return appointmentService.updateStatus(appointmentId, status, userId);
     }
 
     @PutMapping("/{appointmentId}/cancel")
@@ -97,14 +90,13 @@ public class AppointmentController {
     public void cancelAppointment(@PathVariable Long appointmentId,
                                  Authentication auth) {
 
-        Long patientId = ((CustomUserDetails) auth.getPrincipal()).getId();
-        appointmentService.cancelAppointment(appointmentId, patientId);
+        Long userId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        appointmentService.cancelAppointment(appointmentId, userId);
     }
 
     @GetMapping("/doctor/{doctorId}/availability")
     @PreAuthorize("hasAnyRole('PATIENT','ADMIN')")
     public List<AvailabilityResponseDTO> getAvailability(@PathVariable Long doctorId) {
-
         return appointmentService.getAvailability(doctorId);
     }
 }

@@ -10,11 +10,11 @@ import java.time.LocalDate;
 
 public interface PrescriptionService {
 
-    PrescriptionResponseDTO create(PrescriptionRequestDTO request, Long doctorId);
+    PrescriptionResponseDTO create(PrescriptionRequestDTO request, Long userId);
 
-    PrescriptionResponseDTO createUsingAppointment(Long appointmentId, PrescriptionRequestDTO request, Long doctorId);
+    PrescriptionResponseDTO createUsingAppointment(Long appointmentId, PrescriptionRequestDTO request, Long userId);
 
-    PrescriptionResponseDTO createUsingEmail(PrescriptionByEmailRequestDTO request, Long doctorId);
+    PrescriptionResponseDTO createUsingEmail(PrescriptionByEmailRequestDTO request, Long userId);
 
     Page<PrescriptionResponseDTO> getByPatient(Long patientId, int page, int size);
 

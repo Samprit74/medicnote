@@ -32,8 +32,8 @@ public class PrescriptionController {
     public PrescriptionResponseDTO create(@Valid @RequestBody PrescriptionRequestDTO request,
                                           Authentication auth) {
 
-        Long doctorId = ((CustomUserDetails) auth.getPrincipal()).getId();
-        return service.create(request, doctorId);
+        Long userId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        return service.create(request, userId);
     }
 
     @PostMapping("/appointment")
@@ -43,8 +43,8 @@ public class PrescriptionController {
             @RequestBody(required = false) PrescriptionRequestDTO request,
             Authentication auth) {
 
-        Long doctorId = ((CustomUserDetails) auth.getPrincipal()).getId();
-        return service.createUsingAppointment(appointmentId, request, doctorId);
+        Long userId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        return service.createUsingAppointment(appointmentId, request, userId);
     }
 
     @PostMapping("/email")
@@ -53,8 +53,8 @@ public class PrescriptionController {
             @Valid @RequestBody PrescriptionByEmailRequestDTO request,
             Authentication auth) {
 
-        Long doctorId = ((CustomUserDetails) auth.getPrincipal()).getId();
-        return service.createUsingEmail(request, doctorId);
+        Long userId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        return service.createUsingEmail(request, userId);
     }
 
     @GetMapping("/patient/me")

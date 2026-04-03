@@ -56,6 +56,7 @@ public class AuthServiceImpl implements AuthService {
             throw new ResourceAlreadyExistsException("Email already exists");
         }
 
+        // ✅ Create User
         User user = new User();
         user.setEmail(request.getEmail());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
@@ -63,6 +64,7 @@ public class AuthServiceImpl implements AuthService {
 
         userRepository.save(user);
 
+        // ================= DOCTOR =================
         if (request.getRole() == Role.ROLE_DOCTOR) {
 
             if (request.getSpecialization() == null || request.getSpecialization().isBlank()) {
@@ -75,17 +77,29 @@ public class AuthServiceImpl implements AuthService {
 
             Doctor doctor = new Doctor();
             doctor.setName(request.getName());
-            doctor.setEmail(request.getEmail());
+            doctor.setEmail(request.getEmail()); // keep for now (no breaking change)
             doctor.setSpecialization(request.getSpecialization());
             doctor.setExperience(request.getExperience());
+
+            // ✅ LINK USER ↔ DOCTOR
+            doctor.setUser(user);
+            user.setDoctor(doctor);
 
             doctorRepository.save(doctor);
         }
 
+        // ================= PATIENT =================
         if (request.getRole() == Role.ROLE_PATIENT) {
+
             Patient patient = new Patient();
             patient.setName(request.getName());
-            patient.setEmail(request.getEmail());
+            patient.setEmail(request.getEmail()); // keep for now
+            patient.setAge(0); // default (avoid null issues)
+
+            // ✅ LINK USER ↔ PATIENT
+            patient.setUser(user);
+            user.setPatient(patient);
+
             patientRepository.save(patient);
         }
 

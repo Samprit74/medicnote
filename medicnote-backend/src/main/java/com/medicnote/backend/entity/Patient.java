@@ -23,6 +23,11 @@ public class Patient {
 
     private String address;
 
+    // ✅ NEW RELATION
+    @OneToOne
+    @JoinColumn(name = "user_id", nullable = false, unique = true)
+    private User user;
+
     @OneToMany(mappedBy = "patient", cascade = CascadeType.ALL)
     private List<Prescription> prescriptions;
 
@@ -51,6 +56,10 @@ public class Patient {
 
     public String getAddress() { return address; }
     public void setAddress(String address) { this.address = address; }
+
+    // ✅ NEW GETTER/SETTER
+    public User getUser() { return user; }
+    public void setUser(User user) { this.user = user; }
 
     public List<Prescription> getPrescriptions() { return prescriptions; }
     public void setPrescriptions(List<Prescription> prescriptions) { this.prescriptions = prescriptions; }
