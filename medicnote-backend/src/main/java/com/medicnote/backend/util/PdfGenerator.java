@@ -4,17 +4,8 @@ import java.awt.Color;
 import java.io.ByteArrayOutputStream;
 import java.time.format.DateTimeFormatter;
 
-import com.lowagie.text.Chunk;
-import com.lowagie.text.Document;
-import com.lowagie.text.Element;
-import com.lowagie.text.Font;
-import com.lowagie.text.PageSize;
-import com.lowagie.text.Paragraph;
-import com.lowagie.text.Phrase;
-import com.lowagie.text.Rectangle;
-import com.lowagie.text.pdf.PdfPCell;
-import com.lowagie.text.pdf.PdfPTable;
-import com.lowagie.text.pdf.PdfWriter;
+import com.lowagie.text.*;
+import com.lowagie.text.pdf.*;
 import com.medicnote.backend.entity.Prescription;
 import com.medicnote.backend.entity.PrescriptionItem;
 
@@ -31,8 +22,11 @@ public class PdfGenerator {
         try (ByteArrayOutputStream baos = new ByteArrayOutputStream()) {
 
             Document document = new Document(PageSize.A4, 50, 50, 50, 50);
-            PdfWriter.getInstance(document, baos);
+            PdfWriter writer = PdfWriter.getInstance(document, baos);
             document.open();
+
+            // ================= WATERMARK =================
+            addWatermark(writer);
 
             PdfPTable headerTable = new PdfPTable(2);
             headerTable.setWidthPercentage(100);
@@ -159,6 +153,32 @@ public class PdfGenerator {
         } catch (Exception e) {
             throw new RuntimeException("Error generating PDF", e);
         }
+    }
+
+    // ================= WATERMARK METHOD =================
+    private static void addWatermark(PdfWriter writer) {
+        PdfContentByte canvas = writer.getDirectContentUnder();
+
+        Font watermarkFont = new Font(Font.HELVETICA, 60, Font.BOLD, new Color(255, 140, 0));
+
+        Phrase watermark = new Phrase("MEDICNOTE", watermarkFont);
+
+        PdfGState gs = new PdfGState();
+        gs.setFillOpacity(0.15f); // transparency
+
+        canvas.saveState();
+        canvas.setGState(gs);
+
+        ColumnText.showTextAligned(
+                canvas,
+                Element.ALIGN_CENTER,
+                watermark,
+                297,
+                421,
+                45
+        );
+
+        canvas.restoreState();
     }
 
     private static void addPatientCell(PdfPTable table, String label, String value) {
