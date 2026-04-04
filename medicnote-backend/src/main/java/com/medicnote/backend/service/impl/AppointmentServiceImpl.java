@@ -86,8 +86,8 @@ public class AppointmentServiceImpl implements AppointmentService {
                     return new ResourceNotFoundException("Doctor not found");
                 });
 
-        List<Appointment> lockedAppointments =
-                appointmentRepository.findByDoctorIdAndDateForUpdate(doctor.getId(), selectedDate);
+        List<Appointment> lockedAppointments = appointmentRepository.findByDoctorIdAndDateForUpdate(doctor.getId(),
+                selectedDate);
 
         validateDuplicateBooking(lockedAppointments, patient.getId());
 
@@ -350,7 +350,11 @@ public class AppointmentServiceImpl implements AppointmentService {
         String email = appointment.getPatient().getEmail();
         String name = appointment.getPatient().getName();
 
-        emailService.sendPrescriptionEmail(email, name, pdf);
+        emailService.sendPrescriptionEmail(
+                email,
+                name,
+                pdf,
+                appointment.getId());
     }
 
     private void validateDate(LocalDate selectedDate, LocalDate today, LocalDate endDate) {

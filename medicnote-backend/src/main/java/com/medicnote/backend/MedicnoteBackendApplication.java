@@ -5,8 +5,12 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
+@EnableAsync
+@EnableScheduling
 public class MedicnoteBackendApplication {
 
     @Value("${server.port}")
@@ -20,7 +24,8 @@ public class MedicnoteBackendApplication {
 
     public static void main(String[] args) {
         SpringApplication.run(MedicnoteBackendApplication.class, args);
-        System.out.println("project is on main method");    }
+        System.out.println("project is on main method");
+    }
 
     @EventListener(ApplicationReadyEvent.class)
     public void displayStartupInfo() {
