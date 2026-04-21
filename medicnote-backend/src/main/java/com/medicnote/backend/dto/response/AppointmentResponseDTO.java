@@ -6,7 +6,7 @@ import java.time.LocalTime;
 import com.medicnote.backend.entity.AppointmentStatus;
 
 public class AppointmentResponseDTO {
-
+ 
     private Long id;
 
     private Long doctorId;

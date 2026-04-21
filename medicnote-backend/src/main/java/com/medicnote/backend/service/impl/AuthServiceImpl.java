@@ -62,7 +62,7 @@ public class AuthServiceImpl implements AuthService {
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setRole(request.getRole());
 
-        userRepository.save(user);
+ 
 
         // ================= DOCTOR =================
         if (request.getRole() == Role.ROLE_DOCTOR) {
@@ -85,6 +85,7 @@ public class AuthServiceImpl implements AuthService {
             doctor.setUser(user);
             user.setDoctor(doctor);
 
+            userRepository.save(user);
             doctorRepository.save(doctor);
         }
 
@@ -100,6 +101,7 @@ public class AuthServiceImpl implements AuthService {
             patient.setUser(user);
             user.setPatient(patient);
 
+            userRepository.save(user);
             patientRepository.save(patient);
         }
 
@@ -118,6 +120,7 @@ public class AuthServiceImpl implements AuthService {
                 )
         );
 
+        
         User user = userRepository.findByEmail(request.getEmail()).orElseThrow();
 
         String token = jwtUtil.generateToken(

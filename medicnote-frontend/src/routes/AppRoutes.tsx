@@ -12,6 +12,8 @@ import Records from "@/pages/patient/Records";
 import PatientProfile from "@/pages/patient/Profile";
 import ProtectedRoute from "./ProtectedRoute";
 import NotFound from "@/pages/NotFound";
+import PatientDetail from "@/pages/doctor/PatientDetail";
+import Register from "@/pages/auth/Register";
 
 const AppRoutes: React.FC = () => (
   <Routes>
@@ -24,6 +26,7 @@ const AppRoutes: React.FC = () => (
     <Route path="/doctor/prescriptions" element={<ProtectedRoute allowedRole="doctor"><DoctorPrescriptions /></ProtectedRoute>} />
     <Route path="/doctor/queue" element={<ProtectedRoute allowedRole="doctor"><Queue /></ProtectedRoute>} />
     <Route path="/doctor/profile" element={<ProtectedRoute allowedRole="doctor"><DoctorProfile /></ProtectedRoute>} />
+    <Route path="/doctor/patients/:id" element={<ProtectedRoute allowedRole="doctor"><PatientDetail /></ProtectedRoute>} />
 
     {/* Patient Routes */}
     <Route path="/patient/dashboard" element={<ProtectedRoute allowedRole="patient"><PatientDashboard /></ProtectedRoute>} />
@@ -32,6 +35,9 @@ const AppRoutes: React.FC = () => (
     <Route path="/patient/profile" element={<ProtectedRoute allowedRole="patient"><PatientProfile /></ProtectedRoute>} />
 
     <Route path="*" element={<NotFound />} />
+
+    {/* Register */}
+    <Route path="/register" element={<Register />} />
   </Routes>
 );
 

@@ -3,18 +3,46 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Stethoscope } from "lucide-react";
 import type { UserRole } from "@/types/user.types";
+import api from "@/services/api";
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<UserRole>("doctor");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    login(email, password, role);
-    navigate(role === "doctor" ? "/doctor/dashboard" : "/patient/dashboard");
+    setError("");
+    setIsLoading(true);
+
+    try {
+      const res = await api.post("/auth/login", { email, password });
+      const token = res.data.token;
+
+      const user = {
+        email,
+        role: role,
+        name: email.split("@")[0],
+      };
+
+      localStorage.setItem("token", token);
+      localStorage.setItem("user", JSON.stringify(user));
+
+      login(email, password, role);
+
+      navigate(role === "doctor" ? "/doctor/dashboard" : "/patient/dashboard");
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        "Invalid email or password. Please try again.";
+      setError(msg);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -30,6 +58,12 @@ const Login: React.FC = () => {
 
         <form onSubmit={handleSubmit} className="rounded-2xl border border-border bg-card p-8 shadow-sm">
           <h2 className="mb-6 text-lg font-semibold text-foreground">Sign In</h2>
+
+          {error && (
+            <div className="mb-4 rounded-lg bg-destructive/10 px-4 py-2.5 text-sm text-destructive border border-destructive/20">
+              {error}
+            </div>
+          )}
 
           {/* Role Toggle */}
           <div className="mb-6 flex rounded-lg bg-muted p-1">
@@ -57,6 +91,7 @@ const Login: React.FC = () => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="your@email.com"
+                required
                 className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
@@ -67,6 +102,7 @@ const Login: React.FC = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
+                required
                 className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
@@ -74,10 +110,23 @@ const Login: React.FC = () => {
 
           <button
             type="submit"
-            className="mt-6 w-full rounded-lg bg-primary py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
+            disabled={isLoading}
+            className="mt-6 w-full rounded-lg bg-primary py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            Sign In as {role === "doctor" ? "Doctor" : "Patient"}
+            {isLoading ? "Signing in..." : `Sign In as ${role === "doctor" ? "Doctor" : "Patient"}`}
           </button>
+
+          {/* 👇 Register link */}
+          <p className="mt-4 text-center text-sm text-muted-foreground">
+            Don't have an account?{" "}
+            <button
+              type="button"
+              onClick={() => navigate("/register")}
+              className="text-primary hover:underline font-medium"
+            >
+              Register
+            </button>
+          </p>
         </form>
       </div>
     </div>
