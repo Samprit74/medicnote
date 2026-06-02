@@ -1,10 +1,12 @@
-export type UserRole = "doctor" | "patient";
+export type UserRole = "doctor" | "patient" | "admin";
 
 export interface User {
-  id: string;
+  id: number; // backend sends Long → number (not string)
   name: string;
   email: string;
   role: UserRole;
+
+  // optional UI fields (not always from backend)
   avatar?: string;
   specialization?: string;
   location?: string;

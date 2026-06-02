@@ -7,14 +7,44 @@ import type { UserRole } from "@/types/user.types";
 const Login: React.FC = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
+  // keep toggle for UI only (not used in backend)
   const [role, setRole] = useState<UserRole>("doctor");
+
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    login(email, password, role);
-    navigate(role === "doctor" ? "/doctor/dashboard" : "/patient/dashboard");
+
+    setLoading(true);
+    setError("");
+
+    try {
+      await login(email, password);
+
+      const token = localStorage.getItem("token");
+      const decoded = JSON.parse(atob(token!.split(".")[1]));
+
+      // ✅ redirect based on backend role
+      if (decoded.role === "ROLE_DOCTOR") {
+        navigate("/doctor/dashboard");
+      } else if (decoded.role === "ROLE_PATIENT") {
+        navigate("/patient/dashboard");
+      } else if (decoded.role === "ROLE_ADMIN") {
+        navigate("/admin/dashboard");
+      }
+    } catch (err: any) {
+      setError(
+        err?.response?.data?.message ||
+        "Login failed. Check credentials."
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -25,33 +55,46 @@ const Login: React.FC = () => {
             <Stethoscope className="h-7 w-7 text-primary-foreground" />
           </div>
           <h1 className="mt-4 text-2xl font-bold text-foreground">MedicNote</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Digital Prescription Manager</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Digital Prescription Manager
+          </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="rounded-2xl border border-border bg-card p-8 shadow-sm">
-          <h2 className="mb-6 text-lg font-semibold text-foreground">Sign In</h2>
+        <form
+          onSubmit={handleSubmit}
+          className="rounded-2xl border border-border bg-card p-8 shadow-sm"
+        >
+          <h2 className="mb-6 text-lg font-semibold text-foreground">
+            Sign In
+          </h2>
 
-          {/* Role Toggle */}
+          {/* UI Toggle (visual only) */}
           <div className="mb-6 flex rounded-lg bg-muted p-1">
             {(["doctor", "patient"] as const).map((r) => (
               <button
                 key={r}
                 type="button"
                 onClick={() => setRole(r)}
-                className={`flex-1 rounded-md py-2 text-sm font-medium transition-colors ${
-                  role === r
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
+                className={`flex-1 rounded-md py-2 text-sm font-medium transition-colors ${role === r
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+                  }`}
               >
                 {r === "doctor" ? "Doctor" : "Patient"}
               </button>
             ))}
           </div>
 
+          {/* ERROR */}
+          {error && (
+            <p className="mb-4 text-sm text-red-500">{error}</p>
+          )}
+
           <div className="space-y-4">
             <div>
-              <label className="mb-1 block text-sm font-medium text-foreground">Email</label>
+              <label className="mb-1 block text-sm font-medium text-foreground">
+                Email
+              </label>
               <input
                 type="email"
                 value={email}
@@ -60,8 +103,11 @@ const Login: React.FC = () => {
                 className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
+
             <div>
-              <label className="mb-1 block text-sm font-medium text-foreground">Password</label>
+              <label className="mb-1 block text-sm font-medium text-foreground">
+                Password
+              </label>
               <input
                 type="password"
                 value={password}
@@ -74,9 +120,12 @@ const Login: React.FC = () => {
 
           <button
             type="submit"
+            disabled={loading}
             className="mt-6 w-full rounded-lg bg-primary py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
           >
-            Sign In as {role === "doctor" ? "Doctor" : "Patient"}
+            {loading
+              ? "Logging in..."
+              : `Sign In as ${role === "doctor" ? "Doctor" : "Patient"}`}
           </button>
         </form>
       </div>
