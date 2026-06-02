@@ -54,7 +54,7 @@ public class PrescriptionServiceImpl implements PrescriptionService {
     @Transactional
     public PrescriptionResponseDTO create(PrescriptionRequestDTO request, Long userId) {
 
-        logger.info("Creating prescription for user {}", userId);
+        logger.info("Creating/updating prescription for user {}", userId);
 
         Doctor doctor = resolveDoctor(userId);
 
@@ -62,7 +62,16 @@ public class PrescriptionServiceImpl implements PrescriptionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Appointment not found"));
 
         validateDoctor(appointment, doctor.getId());
-        checkDuplicate(appointment);
+
+        // If a prescription was already created (e.g. an empty one was
+        // auto-spawned when the appointment was marked COMPLETED), update
+        // it instead of failing with a duplicate-error. This lets the
+        // doctor write the prescription after completing the appointment.
+        Prescription existing = repository.findByAppointmentId(appointment.getId()).orElse(null);
+        if (existing != null) {
+            applyPrescriptionUpdate(existing, request);
+            return mapper.toDTO(repository.save(existing));
+        }
 
         Prescription prescription = buildPrescription(appointment, request);
         return mapper.toDTO(repository.save(prescription));
@@ -74,7 +83,7 @@ public class PrescriptionServiceImpl implements PrescriptionService {
                                                           PrescriptionRequestDTO request,
                                                           Long userId) {
 
-        logger.info("Creating prescription using appointment {} by user {}", appointmentId, userId);
+        logger.info("Creating/updating prescription using appointment {} by user {}", appointmentId, userId);
 
         Doctor doctor = resolveDoctor(userId);
 
@@ -82,10 +91,34 @@ public class PrescriptionServiceImpl implements PrescriptionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Appointment not found"));
 
         validateDoctor(appointment, doctor.getId());
-        checkDuplicate(appointment);
+
+        // If a prescription was already created (e.g. an empty one was
+        // auto-spawned when the appointment was marked COMPLETED), update
+        // it instead of failing with a duplicate-error. This lets the
+        // doctor write the prescription after completing the appointment.
+        Prescription existing = repository.findByAppointmentId(appointmentId).orElse(null);
+        if (existing != null) {
+            applyPrescriptionUpdate(existing, request);
+            return mapper.toDTO(repository.save(existing));
+        }
 
         Prescription prescription = buildPrescription(appointment, request);
         return mapper.toDTO(repository.save(prescription));
+    }
+
+    private void applyPrescriptionUpdate(Prescription existing, PrescriptionRequestDTO request) {
+        existing.setDiagnosis(request.getDiagnosis());
+        existing.setNotes(request.getNotes());
+        // Replace items cleanly
+        existing.getItems().clear();
+        Optional.ofNullable(request.getItems()).orElse(java.util.List.of()).forEach(i -> {
+            PrescriptionItem item = new PrescriptionItem();
+            item.setMedicineName(i.getMedicineName());
+            item.setDosage(i.getDosage());
+            item.setFrequency(i.getFrequency());
+            item.setDuration(i.getDuration());
+            existing.addItem(item);
+        });
     }
 
     @Override

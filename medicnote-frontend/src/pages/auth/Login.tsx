@@ -1,47 +1,56 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation, Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
-import { Stethoscope } from "lucide-react";
-import type { UserRole } from "@/types/user.types";
+import { Stethoscope, Mail, Lock, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { dashboardPathForRole } from "@/lib/constants";
+import { extractApiError } from "@/lib/errorHandler";
+import { toast } from "sonner";
 
 const Login: React.FC = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-
-  // keep toggle for UI only (not used in backend)
-  const [role, setRole] = useState<UserRole>("doctor");
+  const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<{ email?: string; password?: string; form?: string }>({});
 
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const fromState = (location.state as { from?: { pathname?: string } } | null)?.from;
+  const redirectTo = fromState?.pathname;
 
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const validate = () => {
+    const next: typeof errors = {};
+    if (!email.trim()) next.email = "Email is required.";
+    else if (!/^\S+@\S+\.\S+$/.test(email)) next.email = "Enter a valid email.";
+    if (!password) next.password = "Password is required.";
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
+    setErrors({});
+    if (!validate()) return;
     setLoading(true);
-    setError("");
-
     try {
-      await login(email, password);
-
-      const token = localStorage.getItem("token");
-      const decoded = JSON.parse(atob(token!.split(".")[1]));
-
-      // ✅ redirect based on backend role
-      if (decoded.role === "ROLE_DOCTOR") {
-        navigate("/doctor/dashboard");
-      } else if (decoded.role === "ROLE_PATIENT") {
-        navigate("/patient/dashboard");
-      } else if (decoded.role === "ROLE_ADMIN") {
-        navigate("/admin/dashboard");
+      const user = await login(email, password);
+      toast.success("Welcome back!");
+      navigate(redirectTo || dashboardPathForRole(user.role), { replace: true });
+    } catch (err) {
+      const { message, fieldErrors } = extractApiError(err);
+      // Backend may send a 401 with no field info — show under password.
+      if (fieldErrors) {
+        setErrors({
+          email: fieldErrors.email,
+          password: fieldErrors.password ?? message,
+        });
+      } else {
+        setErrors({ form: message || "Login failed. Check credentials." });
+        toast.error(message || "Login failed. Check credentials.");
       }
-    } catch (err: any) {
-      setError(
-        err?.response?.data?.message ||
-        "Login failed. Check credentials."
-      );
     } finally {
       setLoading(false);
     }
@@ -51,82 +60,85 @@ const Login: React.FC = () => {
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <div className="w-full max-w-md">
         <div className="mb-8 flex flex-col items-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-primary shadow-lg shadow-primary/20">
             <Stethoscope className="h-7 w-7 text-primary-foreground" />
           </div>
           <h1 className="mt-4 text-2xl font-bold text-foreground">MedicNote</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Digital Prescription Manager
-          </p>
+          <p className="mt-1 text-sm text-muted-foreground">Digital Prescription Manager</p>
         </div>
 
         <form
           onSubmit={handleSubmit}
           className="rounded-2xl border border-border bg-card p-8 shadow-sm"
         >
-          <h2 className="mb-6 text-lg font-semibold text-foreground">
-            Sign In
-          </h2>
+          <h2 className="mb-6 text-lg font-semibold text-foreground">Sign In</h2>
 
-          {/* UI Toggle (visual only) */}
-          <div className="mb-6 flex rounded-lg bg-muted p-1">
-            {(["doctor", "patient"] as const).map((r) => (
-              <button
-                key={r}
-                type="button"
-                onClick={() => setRole(r)}
-                className={`flex-1 rounded-md py-2 text-sm font-medium transition-colors ${role === r
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-                  }`}
-              >
-                {r === "doctor" ? "Doctor" : "Patient"}
-              </button>
-            ))}
-          </div>
-
-          {/* ERROR */}
-          {error && (
-            <p className="mb-4 text-sm text-red-500">{error}</p>
+          {errors.form && (
+            <p className="mb-4 rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive dark:border-destructive/40 dark:bg-destructive/20">
+              {errors.form}
+            </p>
           )}
 
           <div className="space-y-4">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-foreground">
-                Email
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="your@email.com"
-                className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              />
+            <div className="space-y-1">
+              <Label htmlFor="email">Email</Label>
+              <div className="relative">
+                <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (errors.email) setErrors((er) => ({ ...er, email: undefined }));
+                  }}
+                  placeholder="your@email.com"
+                  autoComplete="email"
+                  className="pl-9"
+                  aria-invalid={!!errors.email}
+                  required
+                />
+              </div>
+              {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
             </div>
 
-            <div>
-              <label className="mb-1 block text-sm font-medium text-foreground">
-                Password
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-              />
+            <div className="space-y-1">
+              <Label htmlFor="password">Password</Label>
+              <div className="relative">
+                <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (errors.password) setErrors((er) => ({ ...er, password: undefined }));
+                  }}
+                  placeholder="••••••••"
+                  autoComplete="current-password"
+                  className="pl-9"
+                  aria-invalid={!!errors.password}
+                  required
+                />
+              </div>
+              {errors.password && <p className="text-xs text-destructive">{errors.password}</p>}
             </div>
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="mt-6 w-full rounded-lg bg-primary py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 transition-opacity"
-          >
-            {loading
-              ? "Logging in..."
-              : `Sign In as ${role === "doctor" ? "Doctor" : "Patient"}`}
-          </button>
+          <Button type="submit" className="mt-6 w-full" disabled={loading}>
+            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {loading ? "Signing in..." : "Sign In"}
+          </Button>
+
+          <p className="mt-4 text-center text-xs text-muted-foreground">
+            Don't have an account?{" "}
+            <Link
+              to="/register"
+              className="font-medium text-primary hover:underline"
+            >
+              Create one
+            </Link>
+          </p>
         </form>
       </div>
     </div>

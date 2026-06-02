@@ -1,17 +1,13 @@
-import api from "./api";
+import axiosClient from "@/api/axiosClient";
+import { ENDPOINTS } from "@/api/endpoints";
+import type { DoctorDashboardDTO, PatientDashboardDTO } from "@/types/dashboard.types";
 
 export const dashboardService = {
-    /**
-     * 🔹 Doctor dashboard
-     * Role: DOCTOR, ADMIN
-     */
-    getDoctorDashboard: () =>
-        api.get("/api/dashboard/doctor/me"),
+  /** DOCTOR, ADMIN */
+  getDoctorDashboard: () =>
+    axiosClient.get<DoctorDashboardDTO>(ENDPOINTS.dashboard.doctorMe),
 
-    /**
-     * 🔹 Patient dashboard
-     * Role: PATIENT, ADMIN
-     */
-    getPatientDashboard: () =>
-        api.get("/api/dashboard/patient/me"),
+  /** PATIENT, ADMIN */
+  getPatientDashboard: () =>
+    axiosClient.get<PatientDashboardDTO>(ENDPOINTS.dashboard.patientMe),
 };

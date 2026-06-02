@@ -1,6 +1,7 @@
 import React from "react";
 import { Calendar } from "lucide-react";
 import doctorImg from "@/assets/doctor-illustration.png";
+import { Float } from "@/components/common/Float";
 
 interface WelcomeBannerProps {
   name: string;
@@ -29,16 +30,30 @@ const WelcomeBanner: React.FC<WelcomeBannerProps> = ({ name }) => {
         <h1 className="text-2xl font-bold md:text-3xl">Good Day, {name}!</h1>
         <p className="mt-1 text-sm text-primary-foreground/80">Have a Nice Day!</p>
       </div>
-      <img
-        src={doctorImg}
-        alt="Doctor"
-        className="absolute -right-4 -top-2 hidden h-48 object-contain opacity-90 md:block"
-        width={192}
-        height={192}
+
+      {/* Floating doctor illustration — gentle up/down motion */}
+      <Float
+        speed="slow"
+        className="absolute -right-4 -top-2 hidden md:block"
+      >
+        <img
+          src={doctorImg}
+          alt="Doctor"
+          className="h-48 w-auto object-contain opacity-90 drop-shadow-lg"
+          width={192}
+          height={192}
+        />
+      </Float>
+
+      {/* Decorative circles — slower, subtler drift, layered with the figure */}
+      <Float
+        speed="slower"
+        className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-primary-foreground/10"
       />
-      {/* Decorative circles */}
-      <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-primary-foreground/10" />
-      <div className="absolute -bottom-8 right-20 h-24 w-24 rounded-full bg-primary-foreground/5" />
+      <Float
+        speed="slower"
+        className="absolute -bottom-8 right-20 h-24 w-24 rounded-full bg-primary-foreground/5"
+      />
     </div>
   );
 };

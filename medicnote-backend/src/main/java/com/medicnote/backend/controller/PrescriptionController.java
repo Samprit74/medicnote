@@ -3,6 +3,12 @@ package com.medicnote.backend.controller;
 import com.medicnote.backend.dto.request.PrescriptionRequestDTO;
 import com.medicnote.backend.dto.request.PrescriptionByEmailRequestDTO;
 import com.medicnote.backend.dto.response.PrescriptionResponseDTO;
+import com.medicnote.backend.entity.Doctor;
+import com.medicnote.backend.entity.Patient;
+import com.medicnote.backend.entity.User;
+import com.medicnote.backend.exception.AccessDeniedException;
+import com.medicnote.backend.exception.ResourceNotFoundException;
+import com.medicnote.backend.repository.UserRepository;
 import com.medicnote.backend.security.service.CustomUserDetails;
 import com.medicnote.backend.service.PrescriptionService;
 
@@ -22,9 +28,41 @@ import java.time.LocalDate;
 public class PrescriptionController {
 
     private final PrescriptionService service;
+    private final UserRepository userRepository;
 
-    public PrescriptionController(PrescriptionService service) {
+    public PrescriptionController(PrescriptionService service, UserRepository userRepository) {
         this.service = service;
+        this.userRepository = userRepository;
+    }
+
+    /**
+     * The patient-side endpoints receive the JWT principal's id, which is the
+     * User.id (PK of the users table). The service methods filter prescriptions
+     * by Patient.id (PK of the patients table). Resolve the User → Patient
+     * link here so the query targets the correct row.
+     */
+    private Long resolvePatientId(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        Patient patient = user.getPatient();
+        if (patient == null) {
+            throw new AccessDeniedException("Not a patient");
+        }
+        return patient.getId();
+    }
+
+    /**
+     * Same idea for doctor users: JWT gives User.id, service filters by
+     * Doctor.id. Resolve via the User → Doctor link.
+     */
+    private Long resolveDoctorId(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        Doctor doctor = user.getDoctor();
+        if (doctor == null) {
+            throw new AccessDeniedException("Not a doctor");
+        }
+        return doctor.getId();
     }
 
     @PostMapping
@@ -63,7 +101,8 @@ public class PrescriptionController {
                                                       @RequestParam(defaultValue = "0") int page,
                                                       @RequestParam(defaultValue = "7") int size) {
 
-        Long patientId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        Long userId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        Long patientId = resolvePatientId(userId);
         return service.getByPatient(patientId, page, size);
     }
 
@@ -74,7 +113,8 @@ public class PrescriptionController {
                                                    @RequestParam(defaultValue = "0") int page,
                                                    @RequestParam(defaultValue = "7") int size) {
 
-        Long patientId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        Long userId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        Long patientId = resolvePatientId(userId);
         return service.getByPatientAndDate(patientId, date, page, size);
     }
 
@@ -85,7 +125,8 @@ public class PrescriptionController {
                                                      @RequestParam(defaultValue = "0") int page,
                                                      @RequestParam(defaultValue = "7") int size) {
 
-        Long patientId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        Long userId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        Long patientId = resolvePatientId(userId);
         return service.getByPatientAndDoctor(patientId, doctorName, page, size);
     }
 
@@ -97,7 +138,8 @@ public class PrescriptionController {
                                                     @RequestParam(defaultValue = "0") int page,
                                                     @RequestParam(defaultValue = "7") int size) {
 
-        Long patientId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        Long userId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        Long patientId = resolvePatientId(userId);
         return service.getByPatientAndDateRange(patientId, start.toString(), end.toString(), page, size);
     }
 
@@ -109,7 +151,8 @@ public class PrescriptionController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "7") int size) {
 
-        Long doctorId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        Long userId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        Long doctorId = resolveDoctorId(userId);
         return service.getDoctorPatientPrescriptions(doctorId, patientId, page, size);
     }
 
@@ -121,7 +164,8 @@ public class PrescriptionController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "7") int size) {
 
-        Long doctorId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        Long userId = ((CustomUserDetails) auth.getPrincipal()).getId();
+        Long doctorId = resolveDoctorId(userId);
         return service.getDoctorPrescriptionsByDate(doctorId, date, page, size);
     }
 

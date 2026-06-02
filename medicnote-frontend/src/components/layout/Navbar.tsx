@@ -1,7 +1,8 @@
 import React from "react";
-import { Search, Bell, Moon, Sun, Menu } from "lucide-react";
+import { Search, Moon, Sun, Menu } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
+import { NotificationBell } from "@/components/common/NotificationBell";
 
 interface NavbarProps {
   onMenuClick: () => void;
@@ -30,14 +31,12 @@ const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
       <div className="flex items-center gap-3">
         <button
           onClick={toggleTheme}
+          aria-label="Toggle theme"
           className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
         </button>
-        <button className="relative flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
-          <Bell className="h-5 w-5" />
-          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-destructive" />
-        </button>
+        <NotificationBell />
         <div className="flex items-center gap-2">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
             {user?.name?.charAt(0) || "U"}

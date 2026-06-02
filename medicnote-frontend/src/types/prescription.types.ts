@@ -1,39 +1,36 @@
-export interface Prescription {
-  id: string;
-  patientId: string;
-  patientName: string;
-  doctorId: string;
-  doctorName: string;
-  date: string;
-  diagnosis: string;
-  medications: Medication[];
-  notes?: string;
-  status: "active" | "completed" | "cancelled";
-}
+import type { Id } from "./api.types";
 
-export interface Medication {
-  name: string;
+export interface PrescriptionItemDTO {
+  id?: Id;
+  medicineName: string;
   dosage: string;
   frequency: string;
   duration: string;
 }
 
-export interface Appointment {
-  id: string;
-  patientName?: string;
-  doctorName?: string;
-  time: string;
-  title: string;
-  date: string;
-  type: "consultation" | "examination" | "meeting" | "follow-up" | "lab-review" | "new-patient";
-  color: string;
-  status?: "scheduled" | "in-progress" | "completed" | "waiting";
+export interface PrescriptionDTO {
+  id: Id;
+  date: string; // YYYY-MM-DD
+  diagnosis?: string;
+  notes?: string;
+  doctorId: Id;
+  doctorName: string;
+  patientId: Id;
+  patientName: string;
+  items: PrescriptionItemDTO[];
 }
 
-export interface StatsData {
-  label: string;
-  value: number | string;
-  change: string;
-  changeType: "positive" | "negative" | "neutral";
-  icon: string;
+export interface PrescriptionRequest {
+  appointmentId: number;
+  diagnosis?: string;
+  notes?: string;
+  items: PrescriptionItemDTO[];
+}
+
+export interface PrescriptionByEmailRequest {
+  appointmentId: number;
+  patientEmail: string;
+  diagnosis?: string;
+  notes?: string;
+  items: PrescriptionItemDTO[];
 }

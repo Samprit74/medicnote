@@ -1,84 +1,44 @@
-import api from "./api";
+import axiosClient from "@/api/axiosClient";
+import { ENDPOINTS } from "@/api/endpoints";
+import type { DoctorDTO, DoctorRequest } from "@/types/doctor.types";
+import type { Id, PageResponse } from "@/types/api.types";
 
 export const doctorService = {
-    /**
-     * 🔹 Get logged-in doctor profile
-     * Roles: DOCTOR, ADMIN
-     */
-    getMyProfile: () => api.get("/api/doctors/me"),
+  /** DOCTOR, ADMIN — own profile */
+  getMyProfile: () =>
+    axiosClient.get<DoctorDTO>(ENDPOINTS.doctors.me),
 
-    /**
-     * 🔹 Get all doctors
-     * Roles: ADMIN, PATIENT
-     */
-    getAllDoctors: () => api.get("/api/doctors"),
+  /** ADMIN, PATIENT — list all */
+  getAllDoctors: () =>
+    axiosClient.get<DoctorDTO[]>(ENDPOINTS.doctors.base),
 
-    /**
-     * 🔹 Create doctor (ADMIN only)
-     */
-    createDoctor: (data: {
-        name: string;
-        email: string;
-        specialization: string;
-        experience: number;
-    }) => api.post("/api/doctors", data),
+  /** ADMIN — create */
+  createDoctor: (data: DoctorRequest) =>
+    axiosClient.post<DoctorDTO>(ENDPOINTS.doctors.base, data),
 
-    /**
-     * 🔹 Update own profile (DOCTOR, ADMIN)
-     */
-    updateMyProfile: (data: {
-        name: string;
-        email: string;
-        specialization: string;
-        experience: number;
-    }) => api.put("/api/doctors/me", data),
+  /** DOCTOR, ADMIN — update own */
+  updateMyProfile: (data: DoctorRequest) =>
+    axiosClient.put<DoctorDTO>(ENDPOINTS.doctors.me, data),
 
-    /**
-     * 🔹 Admin update doctor
-     */
-    updateDoctorByAdmin: (
-        id: number,
-        data: {
-            name: string;
-            email: string;
-            specialization: string;
-            experience: number;
-        }
-    ) => api.put(`/api/doctors/${id}`, data),
+  /** ADMIN — update by id */
+  updateDoctorByAdmin: (id: Id, data: DoctorRequest) =>
+    axiosClient.put<DoctorDTO>(ENDPOINTS.doctors.byId(id), data),
 
-    /**
-     * 🔹 Delete doctor (ADMIN)
-     */
-    deleteDoctor: (id: number) =>
-        api.delete(`/api/doctors/${id}`),
+  /** ADMIN — delete */
+  deleteDoctor: (id: Id) =>
+    axiosClient.delete<void>(ENDPOINTS.doctors.byId(id)),
 
-    /**
-     * 🔹 Search doctors (non-paginated)
-     */
-    searchDoctors: (params: {
-        specialization?: string;
-        experience?: number;
-    }) =>
-        api.get("/api/doctors/search", {
-            params,
-        }),
+  /** ADMIN, PATIENT — search (non-paginated) */
+  searchDoctors: (params: { specialization?: string; experience?: number }) =>
+    axiosClient.get<DoctorDTO[]>(ENDPOINTS.doctors.search, { params }),
 
-    /**
-     * 🔹 Search doctors (paginated)
-     */
-    searchDoctorsPaginated: (
-        params: {
-            specialization?: string;
-            experience?: number;
-        },
-        page = 0,
-        size = 7
-    ) =>
-        api.get("/api/doctors/search-paginated", {
-            params: {
-                ...params,
-                page,
-                size,
-            },
-        }),
+  /** ADMIN, PATIENT — search paginated */
+  searchDoctorsPaginated: (
+    params: { specialization?: string; experience?: number },
+    page = 0,
+    size = 7
+  ) =>
+    axiosClient.get<PageResponse<DoctorDTO>>(ENDPOINTS.doctors.searchPaginated, {
+      params: { ...params, page, size },
+    }),
 };

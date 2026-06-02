@@ -1,24 +1,36 @@
 import React from "react";
 import type { User } from "@/types/user.types";
 import { MapPin, Edit } from "lucide-react";
+import { Float } from "@/components/common/Float";
 
 interface ProfileCardProps {
   user: User;
 }
 
 const ProfileCard: React.FC<ProfileCardProps> = ({ user }) => {
+  const initials = (user.name || "?")
+    .trim()
+    .split(/\s+/)
+    .map((s) => s[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase() || "?";
+
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
+    <div className="rounded-xl border border-border bg-card p-5 transition-shadow hover:shadow-md">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-semibold text-foreground">MY PROFILE</h3>
-        <button className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+        <button className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-transform hover:scale-105">
           <Edit className="h-4 w-4" />
         </button>
       </div>
       <div className="mt-4 flex flex-col items-center text-center">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary-light text-xl font-bold text-primary">
-          {user.name.charAt(0)}
-        </div>
+        <Float speed="slower">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary-light text-xl font-bold text-primary ring-2 ring-primary/20">
+            {initials}
+          </div>
+        </Float>
         <h4 className="mt-3 text-base font-semibold text-foreground">{user.name}</h4>
         {user.specialization && (
           <span className="mt-0.5 text-xs font-medium uppercase tracking-wider text-primary">

@@ -1,32 +1,11 @@
-import api from "./api";
-
-/**
- * Base Register Type (common fields)
- */
-type BaseRegister = {
-  name: string;
-  email: string;
-  password: string;
-  role: "ROLE_PATIENT" | "ROLE_DOCTOR" | "ROLE_ADMIN";
-};
-
-/**
- * Doctor Extra Fields
- */
-type DoctorExtra = {
-  specialization?: string;
-  experience?: number;
-};
-
-export type RegisterRequest = BaseRegister & DoctorExtra;
+import axiosClient from "@/api/axiosClient";
+import { ENDPOINTS } from "@/api/endpoints";
+import type { AuthRequest, AuthResponse, RegisterRequest } from "@/types/auth.types";
 
 export const authService = {
-  login: (email: string, password: string) =>
-    api.post("/auth/login", {
-      email,
-      password,
-    }),
+  login: (data: AuthRequest) =>
+    axiosClient.post<AuthResponse>(ENDPOINTS.auth.login, data),
 
   register: (data: RegisterRequest) =>
-    api.post("/auth/register", data),
+    axiosClient.post<string>(ENDPOINTS.auth.register, data),
 };

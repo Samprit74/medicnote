@@ -232,11 +232,36 @@ public class AppointmentServiceImpl implements AppointmentService {
         Appointment saved = appointmentRepository.save(appointment);
 
         if (newStatus == AppointmentStatus.COMPLETED) {
-            logger.info("Appointment {} completed. Sending prescription email.", appointmentId);
-            sendPrescriptionEmail(saved);
+            logger.info("Appointment {} completed. Ensuring prescription + sending email.", appointmentId);
+            Prescription prescription = ensurePrescriptionFor(saved);
+            sendPrescriptionEmail(saved, prescription);
         }
 
         return appointmentMapper.toDTO(saved);
+    }
+
+    /**
+     * Make sure a {@link Prescription} row exists for the given appointment.
+     * <p>
+     * A doctor often marks an appointment as COMPLETED before writing the
+     * full prescription. The email send used to fail in that case because
+     * it looked up a non-existent prescription. Now we auto-create an
+     * empty one (tied to the appointment, dated with the appointment date)
+     * so the patient sees the record immediately and the email always
+     * succeeds. The doctor can then fill in the items via the existing
+     * /api/prescriptions/appointment endpoint.
+     */
+    private Prescription ensurePrescriptionFor(Appointment appointment) {
+        return prescriptionRepository.findByAppointmentId(appointment.getId())
+                .orElseGet(() -> {
+                    logger.info("No prescription found for appointment {} — creating empty shell.", appointment.getId());
+                    Prescription p = new Prescription();
+                    p.setAppointment(appointment);
+                    p.setDoctor(appointment.getDoctor());
+                    p.setPatient(appointment.getPatient());
+                    p.setDate(appointment.getAppointmentDate());
+                    return prescriptionRepository.save(p);
+                });
     }
 
     @Override
@@ -339,11 +364,7 @@ public class AppointmentServiceImpl implements AppointmentService {
         return result;
     }
 
-    private void sendPrescriptionEmail(Appointment appointment) {
-
-        Prescription prescription = prescriptionRepository
-                .findByAppointmentId(appointment.getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Prescription not found"));
+    private void sendPrescriptionEmail(Appointment appointment, Prescription prescription) {
 
         byte[] pdf = PdfGenerator.generatePrescriptionPdf(prescription);
 

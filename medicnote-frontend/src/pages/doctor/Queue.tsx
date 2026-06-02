@@ -1,131 +1,61 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback } from "react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
-import { Clock, User } from "lucide-react";
+import { useApi } from "@/hooks/useApi";
 import { appointmentService } from "@/services/appointmentService";
-
-interface QueueItem {
-  id: number;
-  patientName: string;
-  time: string;
-  status: string;
-}
-
-const statusLabels: Record<string, string> = {
-  PENDING: "Waiting",
-  COMPLETED: "Completed",
-  CANCELLED: "Cancelled",
-};
-
-const statusColors: Record<string, string> = {
-  PENDING: "bg-warning/10 text-warning",
-  COMPLETED: "bg-success/10 text-success",
-  CANCELLED: "bg-muted text-muted-foreground",
-};
+import { PageState } from "@/components/common/PageState";
+import { AppointmentList } from "@/components/appointment/AppointmentList";
+import { EmptyIllustration } from "@/components/common/EmptyIllustration";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { RefreshCw } from "lucide-react";
+import type { AppointmentDTO } from "@/types/appointment.types";
 
 const Queue: React.FC = () => {
-  const [appointments, setAppointments] = useState<QueueItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data, loading, error, refetch } = useApi<AppointmentDTO[]>(
+    () => appointmentService.getDoctorQueue(),
+    []
+  );
 
-  const fetchQueue = async () => {
-    try {
-      const res = await appointmentService.getDoctorQueue();
-
-      const mapped: QueueItem[] = res.data.map((a: any) => ({
-        id: a.id,
-        patientName: a.patientName,
-        time: a.appointmentTime,
-        status: a.status,
-      }));
-
-      setAppointments(mapped);
-    } catch (err) {
-      console.error("Failed to fetch queue", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchQueue();
-  }, []);
-
-  const handleComplete = async (id: number) => {
-    try {
-      await appointmentService.updateStatus(id, "COMPLETED");
-      fetchQueue();
-    } catch (err) {
-      console.error("Failed to update status", err);
-    }
-  };
+  const handleComplete = useCallback(
+    async (id: AppointmentDTO["id"]) => {
+      try {
+        await appointmentService.updateStatus(id, "COMPLETED");
+        toast.success("Appointment completed. PDF emailed to patient.");
+        refetch();
+      } catch {
+        /* interceptor already toasted */
+      }
+    },
+    [refetch]
+  );
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <h1 className="text-xl font-bold text-foreground">
-          Patient Queue
-        </h1>
-
-        <div className="rounded-xl border border-border bg-card">
-          <div className="divide-y divide-border">
-            {loading ? (
-              <p className="p-5 text-sm text-muted-foreground">
-                Loading...
-              </p>
-            ) : appointments.length === 0 ? (
-              <p className="p-5 text-sm text-muted-foreground">
-                No patients in queue
-              </p>
-            ) : (
-              appointments.map((q, i) => (
-                <div
-                  key={q.id}
-                  className="flex items-center gap-4 px-5 py-4 hover:bg-muted/50"
-                >
-                  {/* Queue number */}
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-light text-sm font-semibold text-primary">
-                    {i + 1}
-                  </span>
-
-                  {/* Avatar */}
-                  <div className="flex h-9 w-9 items-center justify-center rounded-full bg-muted">
-                    <User className="h-4 w-4 text-muted-foreground" />
-                  </div>
-
-                  {/* Name */}
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-foreground">
-                      {q.patientName}
-                    </p>
-                  </div>
-
-                  {/* Time */}
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Clock className="h-3 w-3" />
-                    {q.time}
-                  </div>
-
-                  {/* Status */}
-                  <span
-                    className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColors[q.status] || statusColors.PENDING
-                      }`}
-                  >
-                    {statusLabels[q.status] || "Waiting"}
-                  </span>
-
-                  {/* Action */}
-                  {q.status === "PENDING" && (
-                    <button
-                      onClick={() => handleComplete(q.id)}
-                      className="ml-2 rounded-md bg-primary px-3 py-1 text-xs text-white hover:opacity-90"
-                    >
-                      Complete
-                    </button>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-bold text-foreground">Patient Queue</h1>
+          <Button variant="outline" size="sm" onClick={refetch} disabled={loading}>
+            <RefreshCw className={`mr-2 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
         </div>
+
+        <PageState
+          loading={loading}
+          error={error}
+          onRetry={refetch}
+          loadingKind="table"
+          empty={!loading && (data?.length ?? 0) === 0}
+          emptyTitle="Queue is clear!"
+          emptyDescription="No patients waiting. See you at the next one."
+          emptyIcon={<EmptyIllustration kind="queue" className="h-20 w-20" />}
+        >
+          <AppointmentList
+            appointments={data ?? []}
+            onComplete={handleComplete}
+            emptyLabel="No patients in queue"
+          />
+        </PageState>
       </div>
     </DashboardLayout>
   );

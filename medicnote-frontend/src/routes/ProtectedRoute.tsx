@@ -1,47 +1,38 @@
 import React from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import type { UserRole } from "@/types/user.types";
+import { Forbidden } from "@/components/common/Forbidden";
+import { SectionLoader } from "@/components/common/SectionLoader";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  allowedRoles?: UserRole[]; // ✅ multiple roles support
+  allowedRoles?: UserRole[];
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children,
   allowedRoles,
 }) => {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
+  const location = useLocation();
 
-  /**
-   * 🔴 Not logged in
-   */
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <SectionLoader label="Checking session..." />
+      </div>
+    );
+  }
+
   if (!isAuthenticated || !user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
-  /**
-   * 🔴 Role not allowed
-   */
   if (allowedRoles && !allowedRoles.includes(user.role)) {
-    // redirect based on actual role
-    if (user.role === "doctor") {
-      return <Navigate to="/doctor/dashboard" replace />;
-    }
-
-    if (user.role === "patient") {
-      return <Navigate to="/patient/dashboard" replace />;
-    }
-
-    if (user.role === "admin") {
-      return <Navigate to="/admin/dashboard" replace />;
-    }
-
-    return <Navigate to="/login" replace />;
+    return <Forbidden />;
   }
 
-  
   return <>{children}</>;
 };
 

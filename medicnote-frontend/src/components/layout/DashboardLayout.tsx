@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useLocation } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import Navbar from "./Navbar";
 
@@ -8,6 +9,7 @@ interface DashboardLayoutProps {
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const [collapsed, setCollapsed] = useState(false);
+  const location = useLocation();
 
   return (
     <div className="flex min-h-screen">
@@ -18,7 +20,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
         }`}
       >
         <Navbar onMenuClick={() => setCollapsed(!collapsed)} />
-        <main className="flex-1 overflow-auto p-6">{children}</main>
+        <main
+          key={location.pathname}
+          className="flex-1 overflow-auto p-6 motion-safe:animate-fade-in"
+        >
+          {children}
+        </main>
       </div>
     </div>
   );
