@@ -41,7 +41,7 @@ public class MedicnoteBackendApplication {
         System.out.println("Health Check     : http://localhost:" + serverPort + "/actuator/health");
 
         System.out.println("Project: MedicNote - Digital Prescription Manager");
-        System.out.println("Tech Stack: Spring Boot | MySQL | React | JWT");
+        System.out.println("Tech Stack: Spring Boot | PostgreSQL | React | JWT");
 
         System.out.println("==============================================================");
         System.out.println();

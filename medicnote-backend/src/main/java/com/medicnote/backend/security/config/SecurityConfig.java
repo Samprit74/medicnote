@@ -1,5 +1,8 @@
 package com.medicnote.backend.security.config;
 
+import java.util.List;
+
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -21,8 +24,6 @@ import com.medicnote.backend.security.service.CustomUserDetailsService;
 
 import jakarta.servlet.http.HttpServletResponse;
 
-import java.util.List;
-
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
@@ -30,8 +31,19 @@ public class SecurityConfig {
     private final JwtFilter jwtFilter;
     private final CustomUserDetailsService userDetailsService;
 
-    public SecurityConfig(JwtFilter jwtFilter,
+    @Value("${LOCAL_FRONTEND_URL}")
+    private String localFrontendUrl;
+
+    @Value("${VITE_FRONTEND_URL}")
+    private String viteFrontendUrl;
+
+    @Value("${BACKEND_URL}")
+    private String backendUrl;
+
+    public SecurityConfig(
+            JwtFilter jwtFilter,
             CustomUserDetailsService userDetailsService) {
+
         this.jwtFilter = jwtFilter;
         this.userDetailsService = userDetailsService;
     }
@@ -52,12 +64,17 @@ public class SecurityConfig {
                                 "/swagger-ui/**",
                                 "/swagger-ui.html")
                         .permitAll()
-                        .anyRequest().authenticated())
+                        .anyRequest()
+                        .authenticated())
                 .exceptionHandling(ex -> ex
-                        .authenticationEntryPoint(
-                                (req, res, exx) -> res.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized")))
+                        .authenticationEntryPoint((req, res, exx) ->
+                                res.sendError(
+                                        HttpServletResponse.SC_UNAUTHORIZED,
+                                        "Unauthorized")))
                 .authenticationProvider(authenticationProvider())
-                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(
+                        jwtFilter,
+                        UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
@@ -65,7 +82,9 @@ public class SecurityConfig {
     @Bean
     public DaoAuthenticationProvider authenticationProvider() {
 
-        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        DaoAuthenticationProvider provider =
+                new DaoAuthenticationProvider();
+
         provider.setUserDetailsService(userDetailsService);
         provider.setPasswordEncoder(passwordEncoder());
 
@@ -78,25 +97,40 @@ public class SecurityConfig {
     }
 
     @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
+    public AuthenticationManager authenticationManager(
+            AuthenticationConfiguration config) throws Exception {
+
         return config.getAuthenticationManager();
     }
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
+
         CorsConfiguration cfg = new CorsConfiguration();
+
         cfg.setAllowedOrigins(List.of(
-                "http://localhost:3009",
-                "http://localhost:5173",
-                "http://localhost:8080"));
-        cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
+                localFrontendUrl,
+                viteFrontendUrl,
+                backendUrl));
+
+        cfg.setAllowedMethods(List.of(
+                "GET",
+                "POST",
+                "PUT",
+                "DELETE",
+                "PATCH",
+                "OPTIONS"));
+
         cfg.setAllowedHeaders(List.of("*"));
         cfg.setExposedHeaders(List.of("Authorization"));
         cfg.setAllowCredentials(true);
         cfg.setMaxAge(3600L);
 
-        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        UrlBasedCorsConfigurationSource source =
+                new UrlBasedCorsConfigurationSource();
+
         source.registerCorsConfiguration("/**", cfg);
+
         return source;
     }
 }

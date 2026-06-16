@@ -1,0 +1,39 @@
+# Maven build output
+target/
+out/
+bin/
+
+# Maven wrapper cache and scripts
+.mvn/
+mvnw
+mvnw.cmd
+
+# IntelliJ IDEA / Eclipse / VS Code
+.idea/
+*.iml
+.metadata/
+.classpath
+.project
+.settings/
+.vscode/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Environment files
+.env
+.env.*
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary & Documentation files
+*.tmp
+HELP.md
+README.md
