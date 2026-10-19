@@ -14,5 +14,6 @@ public interface PrescriptionMapper {
     @Mapping(source = "patient.id", target = "patientId")
     @Mapping(source = "patient.name", target = "patientName")
     @Mapping(source = "items", target = "items")
+    @Mapping(source = "appointment.id", target = "appointmentId")
     PrescriptionResponseDTO toDTO(Prescription prescription);
 }

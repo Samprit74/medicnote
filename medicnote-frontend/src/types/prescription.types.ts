@@ -10,6 +10,7 @@ export interface PrescriptionItemDTO {
 
 export interface PrescriptionDTO {
   id: Id;
+  appointmentId: Id;
   date: string; // YYYY-MM-DD
   diagnosis?: string;
   notes?: string;
@@ -28,7 +29,6 @@ export interface PrescriptionRequest {
 }
 
 export interface PrescriptionByEmailRequest {
-  appointmentId: number;
   patientEmail: string;
   diagnosis?: string;
   notes?: string;

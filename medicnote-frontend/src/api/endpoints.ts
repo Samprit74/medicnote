@@ -58,6 +58,8 @@ export const ENDPOINTS = {
       `/api/prescriptions/doctor/me/patient/${patientId}`,
     doctorMeDate: "/api/prescriptions/doctor/me/date",
     byId: (id: number | string) => `/api/prescriptions/${id}`,
+    byAppointment: (appointmentId: number | string) =>
+      `/api/prescriptions/appointment/${appointmentId}`,
     download: (id: number | string) => `/api/prescriptions/${id}/download`,
   },
 

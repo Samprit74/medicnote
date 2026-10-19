@@ -1,0 +1,121 @@
+﻿Folder PATH listing
+Volume serial number is 4817-4B00
+D:\MEDI\MEDICNOTE\MEDICNOTE-BACKEND\SRC\MAIN\JAVA
+\---com
+    \---medicnote
+        \---backend
+            |   MedicnoteBackendApplication.java
+            |   
+            +---config
+            |       StartupLogger.java
+            |       
+            +---controller
+            |       AppointmentController.java
+            |       AuthController.java
+            |       DashboardController.java
+            |       DoctorController.java
+            |       PatientController.java
+            |       PrescriptionController.java
+            |       
+            +---dto
+            |   +---auth
+            |   |       AuthRequest.java
+            |   |       AuthResponse.java
+            |   |       RegisterRequest.java
+            |   |       
+            |   +---dashboard
+            |   |       DoctorDashboardDTO.java
+            |   |       NextAppointmentDTO.java
+            |   |       PatientDashboardDTO.java
+            |   |       UpcomingAppointmentDTO.java
+            |   |       
+            |   +---request
+            |   |       AppointmentRequestDTO.java
+            |   |       DoctorRequestDTO.java
+            |   |       PatientRequestDTO.java
+            |   |       PrescriptionByEmailRequestDTO.java
+            |   |       PrescriptionItemRequestDTO.java
+            |   |       PrescriptionRequestDTO.java
+            |   |       
+            |   \---response
+            |           AppointmentResponseDTO.java
+            |           AvailabilityResponseDTO.java
+            |           DoctorResponseDTO.java
+            |           PatientResponseDTO.java
+            |           PrescriptionItemResponseDTO.java
+            |           PrescriptionResponseDTO.java
+            |           
+            +---entity
+            |       Appointment.java
+            |       AppointmentStatus.java
+            |       Doctor.java
+            |       EmailQueue.java
+            |       Patient.java
+            |       Prescription.java
+            |       PrescriptionItem.java
+            |       User.java
+            |       
+            +---exception
+            |       AccessDeniedException.java
+            |       GlobalExceptionHandler.java
+            |       IllegalArgumentException.java
+            |       ResourceAlreadyExistsException.java
+            |       ResourceNotFoundException.java
+            |       
+            +---mapper
+            |       AppointmentMapper.java
+            |       DoctorMapper.java
+            |       PatientMapper.java
+            |       PrescriptionItemMapper.java
+            |       PrescriptionMapper.java
+            |       
+            +---repository
+            |       AppointmentRepository.java
+            |       DoctorRepository.java
+            |       EmailQueueRepository.java
+            |       PatientRepository.java
+            |       PrescriptionItemRepository.java
+            |       PrescriptionRepository.java
+            |       UserRepository.java
+            |       
+            +---scheduler
+            |       EmailRetryScheduler.java
+            |       
+            +---security
+            |   +---config
+            |   |       SecurityConfig.java
+            |   |       
+            |   +---enums
+            |   |       Role.java
+            |   |       
+            |   +---jwt
+            |   |       JwtFilter.java
+            |   |       JwtUtil.java
+            |   |       
+            |   \---service
+            |           CustomUserDetails.java
+            |           CustomUserDetailsService.java
+            |           
+            +---service
+            |   |   AppointmentService.java
+            |   |   AuthService.java
+            |   |   DashboardService.java
+            |   |   DoctorService.java
+            |   |   EmailQueueService.java
+            |   |   EmailService.java
+            |   |   PatientService.java
+            |   |   PrescriptionService.java
+            |   |   
+            |   \---impl
+            |           AppointmentServiceImpl.java
+            |           AuthServiceImpl.java
+            |           DashboardServiceImpl.java
+            |           DoctorServiceImpl.java
+            |           EmailQueueServiceImpl.java
+            |           EmailServiceImpl.java
+            |           PatientServiceImpl.java
+            |           PrescriptionServiceImpl.java
+            |           
+            \---util
+                    PdfGenerator.java
+                    

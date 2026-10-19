@@ -47,8 +47,12 @@ public class DoctorController {
     @PreAuthorize("hasAnyRole('ADMIN','DOCTOR')")
     public DoctorResponseDTO updateDoctor(Authentication auth,
             @Valid @RequestBody DoctorRequestDTO request) {
-        Long id = ((CustomUserDetails) auth.getPrincipal()).getId();
-        return doctorService.updateDoctor(id, request);
+        // The principal contains the *User* ID, not the Doctor ID. Retrieve the doctor via email.
+        String email = ((CustomUserDetails) auth.getPrincipal()).getUsername();
+        // Fetch the doctor to obtain its primary key.
+        DoctorResponseDTO doctor = doctorService.getDoctorByEmail(email);
+        Long doctorId = doctor.getId();
+        return doctorService.updateDoctor(doctorId, request);
     }
 
     @PutMapping("/{id}")

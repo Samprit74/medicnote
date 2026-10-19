@@ -71,9 +71,15 @@ export const prescriptionService = {
    * Single prescription
    * ------------------------------------------------------------------ */
 
-  /** PATIENT, DOCTOR, ADMIN — fetch one */
+  /** PATIENT, DOCTOR, ADMIN — fetch one by prescription ID */
   getById: (id: Id) =>
     axiosClient.get<PrescriptionDTO>(ENDPOINTS.prescriptions.byId(id)),
+
+  /** PATIENT, DOCTOR, ADMIN — fetch the prescription attached to an appointment */
+  getByAppointmentId: (appointmentId: Id) =>
+    axiosClient.get<PrescriptionDTO>(
+      ENDPOINTS.prescriptions.byAppointment(appointmentId)
+    ),
 
   /** PATIENT, DOCTOR, ADMIN — PDF download */
   download: (id: Id) =>

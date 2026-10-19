@@ -1,3 +1,4 @@
+
 import React from "react";
 import { FileText, Eye, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,21 +12,35 @@ interface Props {
   onView: (p: PrescriptionDTO) => void;
 }
 
-export const PrescriptionListItem: React.FC<Props> = ({ p, onView }) => {
+export const PrescriptionListItem: React.FC<Props> = ({
+  p,
+  onView,
+}) => {
   const handleDownload = async () => {
     try {
       const res = await prescriptionService.download(p.id);
-      const url = window.URL.createObjectURL(new Blob([res.data]));
+
+      const url = window.URL.createObjectURL(
+        new Blob([res.data], { type: "application/pdf" })
+      );
+
       const link = document.createElement("a");
       link.href = url;
       link.setAttribute("download", `prescription-${p.id}.pdf`);
+
       document.body.appendChild(link);
       link.click();
       link.remove();
-      window.URL.revokeObjectURL(url);
+
+      // Delay cleanup so the browser can begin processing the download.
+      window.setTimeout(() => {
+        window.URL.revokeObjectURL(url);
+      }, 1000);
+
       toast.success("Download started");
-    } catch {
-      /* interceptor already toasted */
+    } catch (error) {
+      // Preserve the existing interceptor's error notification.
+      console.error("Prescription PDF download failed", error);
     }
   };
 
@@ -34,11 +49,20 @@ export const PrescriptionListItem: React.FC<Props> = ({ p, onView }) => {
       <td className="px-5 py-3">
         <div className="flex items-center gap-2">
           <FileText className="h-4 w-4 text-primary" />
-          <span className="font-medium text-foreground">{p.patientName || "—"}</span>
+          <span className="font-medium text-foreground">
+            {p.patientName || "—"}
+          </span>
         </div>
       </td>
-      <td className="px-5 py-3 text-foreground">{p.diagnosis || "—"}</td>
-      <td className="px-5 py-3 text-muted-foreground">{formatDate(p.date)}</td>
+
+      <td className="px-5 py-3 text-foreground">
+        {p.diagnosis || "—"}
+      </td>
+
+      <td className="px-5 py-3 text-muted-foreground">
+        {formatDate(p.date)}
+      </td>
+
       <td className="px-5 py-3">
         <div className="flex justify-end gap-1">
           <Button
@@ -50,6 +74,7 @@ export const PrescriptionListItem: React.FC<Props> = ({ p, onView }) => {
           >
             <Eye className="h-4 w-4" />
           </Button>
+
           <Button
             variant="ghost"
             size="icon"

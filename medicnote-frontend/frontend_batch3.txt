@@ -1,0 +1,550 @@
+
+
+
+========== FILE: src/api/axiosClient.ts ==========
+import axios, { AxiosError, AxiosResponse, InternalAxiosRequestConfig } from "axios";
+import { toast } from "sonner";
+
+/**
+ * Centralized Axios instance for the whole app.
+ *
+ * - baseURL from `VITE_API_BASE_URL` (e.g. `http://localhost:8080`).
+ * - Attaches `Authorization: Bearer <token>` to every request when a token is present.
+ * - On response errors:
+ *    - 401  → clear token, route to /login, toast "Session expired".
+ *    - 403  → route to /forbidden, toast "Access denied".
+ *    - 5xx  → toast a generic "Server error" (uses backend message when available).
+ *    - 4xx  → toast the backend `message` (or field map) if present.
+ *    - network/timeout → toast "Network error".
+ *
+ * The interceptor does NOT swallow the error — pages can still branch on it.
+ */
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
+
+const axiosClient = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    "Content-Type": "application/json",
+  },
+  timeout: 15000,
+});
+
+// ------------------------------------------------------------------
+// Request interceptor — attach JWT
+// ------------------------------------------------------------------
+axiosClient.interceptors.request.use(
+  (config: InternalAxiosRequestConfig) => {
+    const token = localStorage.getItem("token");
+    if (token && config.headers) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// ------------------------------------------------------------------
+// Response interceptor — central error handling
+// ------------------------------------------------------------------
+type ErrorBody = {
+  message?: string;
+  messages?: Record<string, string>;
+  error?: string;
+  status?: number;
+  timestamp?: string;
+};
+
+function extractMessage(data: unknown, fallback: string): string {
+  if (data && typeof data === "object") {
+    const body = data as ErrorBody;
+    if (body.message) return body.message;
+    if (body.messages) {
+      const entries = Object.entries(body.messages);
+      if (entries.length) {
+        return entries
+          .map(([field, msg]) => `${field}: ${msg}`)
+          .join("\n");
+      }
+    }
+    if (body.error) return body.error;
+  }
+  if (typeof data === "string" && data.trim().length > 0) {
+    return data;
+  }
+  return fallback;
+}
+
+let hasShownAuthToast = false;
+function safeToastError(message: string) {
+  // Throttle identical auth messages to avoid loops when many requests 401 at once.
+  if (hasShownAuthToast) return;
+  hasShownAuthToast = true;
+  toast.error(message);
+  setTimeout(() => {
+    hasShownAuthToast = false;
+  }, 1500);
+}
+
+function go(path: string) {
+  if (typeof window !== "undefined" && window.location.pathname !== path) {
+    window.location.assign(path);
+  }
+}
+
+/**
+ * Internal flags a request can set to opt out of the global 401/403 redirects
+ * and auto-toasts. Used when the caller wants to render the error inline.
+ *
+ * Example:
+ *   patientService.searchPatients(kw, p, s, { silent403: true })
+ *   → mark this call so the interceptor returns the error without bouncing
+ *     to /forbidden and without showing a global toast.
+ */
+declare module "axios" {
+  export interface AxiosRequestConfig {
+    __silent403?: boolean;
+  }
+}
+
+axiosClient.interceptors.response.use(
+  (response: AxiosResponse) => response,
+  (error: AxiosError<ErrorBody>) => {
+    const status = error.response?.status;
+    const data = error.response?.data;
+
+    if (error.code === "ERR_NETWORK" || !error.response) {
+      toast.error("Network error. Please check your connection.");
+      return Promise.reject(error);
+    }
+
+    if (status === 401) {
+      localStorage.removeItem("token");
+      safeToastError("Session expired. Please log in again.");
+      go("/login");
+      return Promise.reject(error);
+    }
+
+    if (status === 403) {
+      if (error.config?.__silent403) {
+        // Caller wants the error returned so it can render inline.
+        return Promise.reject(error);
+      }
+      // Toast only — do NOT redirect to /forbidden. The /forbidden page is
+      // meant for direct navigation (e.g. cross-role access via ProtectedRoute).
+      // A 403 from an API call is a per-action error, not a session-level
+      // one, so the user stays on the current page and can read the toast.
+      safeToastError(
+        extractMessage(data, "Access denied. You don't have permission for this action.")
+      );
+      return Promise.reject(error);
+    }
+
+    if (status === 404) {
+      toast.error(extractMessage(data, "Resource not found"));
+      return Promise.reject(error);
+    }
+
+    if (status === 400 || status === 409) {
+      toast.error(extractMessage(data, "Bad request"));
+      return Promise.reject(error);
+    }
+
+    if (status && status >= 500) {
+      toast.error(extractMessage(data, "Server error. Please try again."));
+      return Promise.reject(error);
+    }
+
+    // Anything else: surface whatever backend said.
+    toast.error(extractMessage(data, "Request failed"));
+    return Promise.reject(error);
+  }
+);
+
+export default axiosClient;
+export { extractMessage };
+
+
+
+========== FILE: src/api/endpoints.ts ==========
+/**
+ * Centralized URL constants.
+ *
+ * Single place to change API paths. Services use these instead of hardcoding strings.
+ * The .env base URL is `http://localhost:8080` (no /api), so each constant below
+ * includes its own prefix.
+ */
+export const ENDPOINTS = {
+  // Auth (no /api)
+  auth: {
+    login: "/auth/login",
+    register: "/auth/register",
+  },
+
+  // Doctor
+  doctors: {
+    base: "/api/doctors",
+    me: "/api/doctors/me",
+    byId: (id: number | string) => `/api/doctors/${id}`,
+    search: "/api/doctors/search",
+    searchPaginated: "/api/doctors/search-paginated",
+  },
+
+  // Patient
+  patients: {
+    base: "/api/patients",
+    me: "/api/patients/me",
+    byId: (id: number | string) => `/api/patients/${id}`,
+    doctorMe: "/api/patients/doctor/me",
+    doctorMeSearch: "/api/patients/doctor/me/search",
+    doctorMeToday: "/api/patients/doctor/me/today",
+    doctorMeWeekly: "/api/patients/doctor/me/weekly",
+  },
+
+  // Appointment
+  appointments: {
+    base: "/api/appointments",
+    doctorMeQueue: "/api/appointments/doctor/me/queue",
+    doctorMe: "/api/appointments/doctor/me",
+    patientMe: "/api/appointments/patient/me",
+    patientMeHistory: "/api/appointments/patient/me/history",
+    status: (id: number | string) => `/api/appointments/${id}/status`,
+    cancel: (id: number | string) => `/api/appointments/${id}/cancel`,
+    doctorAvailability: (doctorId: number | string) =>
+      `/api/appointments/doctor/${doctorId}/availability`,
+  },
+
+  // Prescription
+  prescriptions: {
+    base: "/api/prescriptions",
+    appointment: "/api/prescriptions/appointment",
+    email: "/api/prescriptions/email",
+    patientMe: "/api/prescriptions/patient/me",
+    patientMeDate: "/api/prescriptions/patient/me/date",
+    patientMeDoctor: "/api/prescriptions/patient/me/doctor",
+    patientMeRange: "/api/prescriptions/patient/me/range",
+    doctorMePatient: (patientId: number | string) =>
+      `/api/prescriptions/doctor/me/patient/${patientId}`,
+    doctorMeDate: "/api/prescriptions/doctor/me/date",
+    byId: (id: number | string) => `/api/prescriptions/${id}`,
+    download: (id: number | string) => `/api/prescriptions/${id}/download`,
+  },
+
+  // Dashboard
+  dashboard: {
+    doctorMe: "/api/dashboard/doctor/me",
+    patientMe: "/api/dashboard/patient/me",
+  },
+} as const;
+
+
+
+========== FILE: src/services/api.ts ==========
+/**
+ * Back-compat re-export. The real client lives in `src/api/axiosClient.ts`.
+ * New code should import directly from `@/api/axiosClient`.
+ */
+import axiosClient from "@/api/axiosClient";
+export default axiosClient;
+
+
+
+========== FILE: src/hooks/useApi.ts ==========
+import { useCallback, useEffect, useState } from "react";
+import { AxiosResponse } from "axios";
+import { normalizeError, NormalizedError } from "@/lib/errorHandler";
+
+export interface UseApiResult<T> {
+  data: T | null;
+  loading: boolean;
+  error: NormalizedError | null;
+  refetch: () => void;
+  setData: (v: T | null) => void;
+}
+
+/**
+ * Generic data-fetching hook.
+ * - Calls `fetcher()` on mount and whenever `deps` change.
+ * - Returns `{ data, loading, error, refetch, setData }`.
+ * - The Axios response interceptor already toasts on errors, so the
+ *   page decides whether to also render `error` inline.
+ */
+export function useApi<T>(
+  fetcher: () => Promise<AxiosResponse<T>>,
+  deps: ReadonlyArray<unknown> = []
+): UseApiResult<T> {
+  const [data, setData] = useState<T | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<NormalizedError | null>(null);
+  const [tick, setTick] = useState(0);
+
+  const refetch = useCallback(() => setTick((t) => t + 1), []);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    fetcher()
+      .then((res) => {
+        if (!cancelled) setData(res.data);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(normalizeError(err));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [...deps, tick]);
+
+  return { data, loading, error, refetch, setData };
+}
+
+
+
+========== FILE: src/hooks/useDebounce.ts ==========
+import { useEffect, useState } from "react";
+
+/**
+ * Returns a debounced copy of `value` that only updates after `delay` ms of stability.
+ */
+export function useDebounce<T>(value: T, delay = 300): T {
+  const [debounced, setDebounced] = useState<T>(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(t);
+  }, [value, delay]);
+  return debounced;
+}
+
+
+
+========== FILE: src/hooks/usePaginated.ts ==========
+import { useCallback, useState } from "react";
+import type { PageResponse } from "@/types/api.types";
+import { useApi, UseApiResult } from "./useApi";
+
+export interface UsePaginatedOptions {
+  initialPage?: number;
+  initialSize?: number;
+}
+
+export interface UsePaginatedResult<T> extends UseApiResult<PageResponse<T>> {
+  page: number;
+  setPage: (p: number) => void;
+  size: number;
+  setSize: (s: number) => void;
+  goNext: () => void;
+  goPrev: () => void;
+}
+
+/**
+ * Wraps `useApi` with page/size state for paginated endpoints.
+ * Pass an endpoint factory that takes `(page, size)` and returns a promise.
+ */
+export function usePaginated<T>(
+  fetcherFactory: (page: number, size: number) => ReturnType<Parameters<typeof useApi<PageResponse<T>>>[0]>,
+  options: UsePaginatedOptions = {}
+): UsePaginatedResult<T> {
+  const { initialPage = 0, initialSize = 7 } = options;
+  const [page, setPage] = useState(initialPage);
+  const [size, setSize] = useState(initialSize);
+
+  const result = useApi<PageResponse<T>>(
+    useCallback(() => fetcherFactory(page, size), [fetcherFactory, page, size]),
+    [page, size]
+  );
+
+  const goNext = useCallback(
+    () => setPage((p) => (result.data && !result.data.last ? p + 1 : p)),
+    [result.data]
+  );
+  const goPrev = useCallback(
+    () => setPage((p) => (p > 0 ? p - 1 : p)),
+    []
+  );
+
+  return { ...result, page, setPage, size, setSize, goNext, goPrev };
+}
+
+
+
+========== FILE: src/lib/errorHandler.ts ==========
+import { AxiosError } from "axios";
+import { toast } from "sonner";
+
+/**
+ * Normalize an Axios error into a stable shape for inline rendering.
+ * Used by pages that need to show errors inside the page (not just a toast).
+ */
+export interface NormalizedError {
+  message: string;
+  fieldErrors?: Record<string, string>;
+  status?: number;
+}
+
+type ErrorBody = {
+  message?: string;
+  messages?: Record<string, string>;
+  error?: string;
+  status?: number;
+};
+
+export function normalizeError(err: unknown): NormalizedError {
+  if (err && typeof err === "object" && "isAxiosError" in err) {
+    const axErr = err as AxiosError<ErrorBody>;
+    const data = axErr.response?.data;
+    if (axErr.code === "ERR_NETWORK" || !axErr.response) {
+      return {
+        message: "Network error. Please check your connection.",
+        status: 0,
+      };
+    }
+    const message = data?.message ?? data?.error ?? axErr.message ?? "Request failed";
+    return {
+      message,
+      fieldErrors: data?.messages,
+      status: axErr.response.status,
+    };
+  }
+  if (err instanceof Error) return { message: err.message };
+  return { message: "Unknown error" };
+}
+
+export function extractApiError(err: unknown): { message: string; fieldErrors?: Record<string, string> } {
+  return normalizeError(err);
+}
+
+/**
+ * Show a toast for an error and rethrow the normalized form so callers can branch.
+ * Use this when the page wants the toast AND inline state.
+ */
+export function handleApiError(err: unknown, fallback = "Something went wrong"): never {
+  const norm = normalizeError(err);
+  toast.error(norm.message || fallback);
+  throw norm;
+}
+
+
+
+========== FILE: src/lib/jwt.ts ==========
+/**
+ * JWT helpers — purely functional, no React, no axios.
+ */
+
+export interface DecodedJwt {
+  sub?: string;
+  role?: string;
+  userId?: number;
+  exp?: number;
+  iat?: number;
+  [key: string]: unknown;
+}
+
+export function parseJwt(token: string): DecodedJwt | null {
+  try {
+    const part = token.split(".")[1];
+    if (!part) return null;
+    const base64 = part.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+    const json =
+      typeof atob === "function"
+        ? atob(padded)
+        : Buffer.from(padded, "base64").toString("utf-8");
+    return JSON.parse(json) as DecodedJwt;
+  } catch {
+    return null;
+  }
+}
+
+export function isTokenExpired(token: string): boolean {
+  const decoded = parseJwt(token);
+  if (!decoded || !decoded.exp) return true;
+  return Date.now() >= decoded.exp * 1000;
+}
+
+
+
+========== FILE: src/types/api.types.ts ==========
+/**
+ * Generic API contracts. Mirrors the shape Spring returns.
+ */
+
+export interface PageResponse<T> {
+  content: T[];
+  totalElements: number;
+  totalPages: number;
+  number: number; // current page (0-based)
+  size: number;
+  first: boolean;
+  last: boolean;
+  empty: boolean;
+}
+
+export interface ApiErrorBody {
+  message?: string;
+  messages?: Record<string, string>;
+  error?: string;
+  status?: number;
+  timestamp?: string;
+}
+
+export interface SortParam {
+  field: string;
+  direction?: "asc" | "desc";
+}
+
+export type Id = number | string;
+
+
+
+========== FILE: src/types/auth.types.ts ==========
+export type BackendRole = "ROLE_ADMIN" | "ROLE_DOCTOR" | "ROLE_PATIENT";
+
+export interface AuthRequest {
+  email: string;
+  password: string;
+}
+
+export interface AuthResponse {
+  token: string;
+}
+
+export interface RegisterRequest {
+  name: string;
+  email: string;
+  password: string;
+  role: BackendRole;
+  // Doctor-only:
+  specialization?: string;
+  experience?: number;
+}
+
+
+
+========== FILE: src/types/user.types.ts ==========
+export type UserRole = "doctor" | "patient" | "admin";
+
+export interface User {
+  id: number;
+  name: string;
+  email: string;
+  role: UserRole;
+  avatar?: string;
+  specialization?: string;
+  location?: string;
+  dateOfBirth?: string;
+  bloodGroup?: string;
+  workingHours?: string;
+  phone?: string;
+}
+
+export interface AuthState {
+  user: User | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+}
+

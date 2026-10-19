@@ -44,22 +44,30 @@ export const NotificationBell: React.FC = () => {
   const isDoctor = user?.role === "doctor";
   const isPatient = user?.role === "patient";
 
-  // Patient: read dashboard
+  // Patient: read dashboard (only if user is patient)
   const patientDash = useApi<PatientDashboardDTO>(
-    () => dashboardService.getPatientDashboard(),
-    []
+    () => {
+      if (isPatient) return dashboardService.getPatientDashboard();
+      // Return resolved empty response to avoid request
+      return Promise.resolve({ data: null } as any);
+    },
+    [isPatient]
   );
-  // Doctor: read today's queue
+  // Doctor: read today's queue (only if user is doctor)
   const doctorQueue = useApi<AppointmentDTO[]>(
-    () => appointmentService.getDoctorQueue(),
-    []
+    () => {
+      if (isDoctor) return appointmentService.getDoctorQueue();
+      // Return resolved empty array response
+      return Promise.resolve({ data: [] } as any);
+    },
+    [isDoctor]
   );
 
   // Re-fetch when the popover opens so the count is fresh.
   useEffect(() => {
     if (!open) return;
-    if (isPatient) patientDash.refetch();
-    if (isDoctor) doctorQueue.refetch();
+    if (isPatient && !patientDash.error) patientDash.refetch();
+    if (isDoctor && !doctorQueue.error) doctorQueue.refetch();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 

@@ -27,11 +27,11 @@ public class User implements UserDetails {
     @Column(nullable = false)
     private Role role;
 
-    // ✅ NEW RELATION WITH DOCTOR
+    //  NEW RELATION WITH DOCTOR
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
     private Doctor doctor;
 
-    // ✅ NEW RELATION WITH PATIENT
+    // NEW RELATION WITH PATIENT
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
     private Patient patient;
 
@@ -78,7 +78,7 @@ public class User implements UserDetails {
         this.role = role;
     }
 
-    // ✅ NEW GETTERS/SETTERS
+    //  NEW GETTERS/SETTERS
     public Doctor getDoctor() {
         return doctor;
     }

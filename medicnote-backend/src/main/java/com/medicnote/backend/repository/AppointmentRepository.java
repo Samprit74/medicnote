@@ -122,4 +122,9 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
         AND a.status != com.medicnote.backend.entity.AppointmentStatus.CANCELLED
     """)
     Object[] getDashboardStats(Long doctorId, LocalDate start, LocalDate end);
+
+    Page<Appointment> findByPatientIdAndStatusOrderByAppointmentDateDesc(
+            Long patientId,
+            AppointmentStatus status,
+            Pageable pageable);
 }

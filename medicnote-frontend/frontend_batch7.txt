@@ -1,0 +1,1615 @@
+MEDICNOTE FRONTEND - BATCH 7
+Collected: 10/18/2026 11:42:40
+
+========== FILE: src/lib/constants.ts ==========
+
+export const APP_NAME = "MedicNote";
+
+export interface MenuItem {
+  label: string;
+  path: string;
+  icon: string;
+}
+
+export const DOCTOR_MENU: ReadonlyArray<MenuItem> = [
+  { label: "Dashboard", path: "/doctor/dashboard", icon: "LayoutDashboard" },
+  { label: "Patients", path: "/doctor/patients", icon: "Users" },
+  { label: "Prescriptions", path: "/doctor/prescriptions", icon: "FileText" },
+  { label: "Queue", path: "/doctor/queue", icon: "ClipboardList" },
+  { label: "Profile", path: "/doctor/profile", icon: "UserCircle" },
+];
+
+export const PATIENT_MENU: ReadonlyArray<MenuItem> = [
+  { label: "Dashboard", path: "/patient/dashboard", icon: "LayoutDashboard" },
+  { label: "Find Doctor", path: "/patient/doctors", icon: "Stethoscope" },
+  { label: "Prescriptions", path: "/patient/prescriptions", icon: "FileText" },
+  { label: "Records", path: "/patient/records", icon: "FolderOpen" },
+  { label: "Profile", path: "/patient/profile", icon: "UserCircle" },
+];
+
+export const ADMIN_MENU: ReadonlyArray<MenuItem> = [
+  { label: "Admin", path: "/admin/dashboard", icon: "Shield" },
+  { label: "Profile", path: "/admin/dashboard", icon: "UserCircle" },
+];
+
+export function menuForRole(role: "doctor" | "patient" | "admin"): ReadonlyArray<MenuItem> {
+  if (role === "doctor") return DOCTOR_MENU;
+  if (role === "admin") return ADMIN_MENU;
+  return PATIENT_MENU;
+}
+
+export function dashboardPathForRole(role: "doctor" | "patient" | "admin"): string {
+  if (role === "doctor") return "/doctor/dashboard";
+  if (role === "admin") return "/admin/dashboard";
+  return "/patient/dashboard";
+}
+
+export const APPOINTMENT_STATUSES = ["PENDING", "COMPLETED", "CANCELLED"] as const;
+export type AppointmentStatusLiteral = (typeof APPOINTMENT_STATUSES)[number];
+
+
+========== FILE: src/lib/utils.ts ==========
+
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+
+========== FILE: src/lib/formatters.ts ==========
+
+/**
+ * Date / time formatters used across the app.
+ * Centralized so a single change updates every screen.
+ */
+
+export function formatDate(input: string | Date | null | undefined): string {
+  if (!input) return "—";
+  const d = typeof input === "string" ? new Date(input) : input;
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+export function formatTime(input: string | Date | null | undefined): string {
+  if (!input) return "—";
+  // Spring sends "HH:mm:ss" or "HH:mm" for LocalTime; Date needs a date prefix.
+  if (typeof input === "string" && /^\d{2}:\d{2}(:\d{2})?$/.test(input)) {
+    const [h, m] = input.split(":");
+    const d = new Date();
+    d.setHours(Number(h), Number(m), 0, 0);
+    return d.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+  }
+  const d = typeof input === "string" ? new Date(input) : input;
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
+export function formatDateTime(input: string | Date | null | undefined): string {
+  if (!input) return "—";
+  const d = typeof input === "string" ? new Date(input) : input;
+  if (Number.isNaN(d.getTime())) return "—";
+  return d.toLocaleString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
+export function formatRelative(input: string | Date | null | undefined): string {
+  if (!input) return "—";
+  const d = typeof input === "string" ? new Date(input) : input;
+  if (Number.isNaN(d.getTime())) return "—";
+  const diff = d.getTime() - Date.now();
+  const abs = Math.abs(diff);
+  const minutes = Math.round(abs / 60000);
+  const hours = Math.round(abs / 3_600_000);
+  const days = Math.round(abs / 86_400_000);
+  const future = diff > 0;
+  if (minutes < 60) return future ? `in ${minutes} min` : `${minutes} min ago`;
+  if (hours < 24) return future ? `in ${hours} h` : `${hours} h ago`;
+  return future ? `in ${days} d` : `${days} d ago`;
+}
+
+export function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+
+========== FILE: src/components/common/NotificationBell.tsx ==========
+
+import React, { useEffect, useState } from "react";
+import { Bell, Calendar, Stethoscope, FileText } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { useAuth } from "@/hooks/useAuth";
+import { useApi } from "@/hooks/useApi";
+import { dashboardService } from "@/services/dashboardService";
+import { appointmentService } from "@/services/appointmentService";
+import { formatDate, formatTime, formatRelative } from "@/lib/formatters";
+import type { PatientDashboardDTO, UpcomingAppointmentDTO } from "@/types/dashboard.types";
+import type { AppointmentDTO } from "@/types/appointment.types";
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
+
+interface NotificationItem {
+  id: string;
+  icon: React.ReactNode;
+  title: string;
+  subtitle: string;
+  badge?: string;
+  tint: string;
+}
+
+const tintFor = (tint: string) => {
+  switch (tint) {
+    case "emerald":
+      return "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/50 dark:text-emerald-400";
+    case "violet":
+      return "bg-violet-100 text-violet-600 dark:bg-violet-900/50 dark:text-violet-400";
+    case "sky":
+      return "bg-sky-100 text-sky-600 dark:bg-sky-900/50 dark:text-sky-400";
+    default:
+      return "bg-muted text-muted-foreground";
+  }
+};
+
+export const NotificationBell: React.FC = () => {
+  const { user } = useAuth();
+  const [open, setOpen] = useState(false);
+
+  const isDoctor = user?.role === "doctor";
+  const isPatient = user?.role === "patient";
+
+  // Patient: read dashboard
+  const patientDash = useApi<PatientDashboardDTO>(
+    () => dashboardService.getPatientDashboard(),
+    []
+  );
+  // Doctor: read today's queue
+  const doctorQueue = useApi<AppointmentDTO[]>(
+    () => appointmentService.getDoctorQueue(),
+    []
+  );
+
+  // Re-fetch when the popover opens so the count is fresh.
+  useEffect(() => {
+    if (!open) return;
+    if (isPatient) patientDash.refetch();
+    if (isDoctor) doctorQueue.refetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const items: NotificationItem[] = [];
+  if (isPatient) {
+    const upcoming = (patientDash.data?.upcomingAppointments ?? []).slice(0, 3);
+    upcoming.forEach((u: UpcomingAppointmentDTO) => {
+      items.push({
+        id: `appt-${u.date}-${u.time}-${u.doctorName}`,
+        icon: <Calendar className="h-4 w-4" />,
+        title: `Visit with ${u.doctorName}`,
+        subtitle: `${formatDate(u.date)} • ${formatTime(u.time)} • ${formatRelative(u.date)}`,
+        badge: "Upcoming",
+        tint: "emerald",
+      });
+    });
+    const total = patientDash.data?.totalPrescriptions ?? 0;
+    if (total > 0) {
+      items.push({
+        id: "rx-total",
+        icon: <FileText className="h-4 w-4" />,
+        title: `${total} prescription${total === 1 ? "" : "s"} on file`,
+        subtitle: "View or download from the Prescriptions page.",
+        tint: "violet",
+      });
+    }
+  }
+  if (isDoctor) {
+    const pending = (doctorQueue.data ?? []).filter((a) => a.status === "PENDING");
+    pending.slice(0, 3).forEach((a) => {
+      items.push({
+        id: `queue-${a.id}`,
+        icon: <Stethoscope className="h-4 w-4" />,
+        title: `${a.patientName} waiting`,
+        subtitle: `${formatTime(a.appointmentTime)} • Queue #${a.queueNumber ?? "—"}`,
+        badge: "Today",
+        tint: "emerald",
+      });
+    });
+  }
+
+  const total = items.length;
+  const isLoading = (isPatient && patientDash.loading) || (isDoctor && doctorQueue.loading);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          aria-label="Notifications"
+          className="relative flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <Bell className="h-5 w-5" />
+          {total > 0 && (
+            <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-destructive-foreground">
+              {total > 9 ? "9+" : total}
+            </span>
+          )}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-80 p-0" align="end" sideOffset={8}>
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <p className="text-sm font-semibold text-foreground">Notifications</p>
+          {total > 0 && (
+            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+              {total} new
+            </span>
+          )}
+        </div>
+        <div className="max-h-96 overflow-y-auto">
+          {isLoading ? (
+            <div className="space-y-2 p-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="flex items-start gap-3 p-2">
+                  <Skeleton className="h-9 w-9 rounded-lg" />
+                  <div className="flex-1 space-y-2">
+                    <Skeleton className="h-3 w-3/4" />
+                    <Skeleton className="h-3 w-1/2" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : total === 0 ? (
+            <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+              You're all caught up!
+            </div>
+          ) : (
+            <ul className="divide-y divide-border">
+              {items.map((n) => (
+                <li
+                  key={n.id}
+                  className="flex items-start gap-3 px-4 py-3 transition-colors hover:bg-muted/50"
+                >
+                  <div
+                    className={cn(
+                      "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg",
+                      tintFor(n.tint)
+                    )}
+                  >
+                    {n.icon}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate text-sm font-medium text-foreground">{n.title}</p>
+                      {n.badge && (
+                        <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                          {n.badge}
+                        </span>
+                      )}
+                    </div>
+                    <p className="truncate text-xs text-muted-foreground">{n.subtitle}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div className="border-t border-border px-4 py-2 text-center text-xs text-muted-foreground">
+          {total > 0 ? "Showing latest" : "No new notifications"}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+};
+
+export default NotificationBell;
+
+
+========== FILE: src/components/common/EmptyIllustration.tsx ==========
+
+import React from "react";
+
+export type EmptyKind = "prescription" | "patient" | "record" | "queue" | "doctor";
+
+interface Props {
+  kind: EmptyKind;
+  className?: string;
+}
+
+/**
+ * Small flat illustration used in empty states.
+ * Style matches the existing doctor-illustration.png — soft pastels,
+ * rounded shapes, no harsh outlines.
+ */
+export const EmptyIllustration: React.FC<Props> = ({ kind, className }) => {
+  const cls = className ?? "h-12 w-12";
+
+  switch (kind) {
+    case "prescription":
+      return (
+        <svg viewBox="0 0 64 64" className={cls} aria-hidden="true">
+          <rect x="14" y="8" width="36" height="48" rx="4" fill="#fff" stroke="#E0E7FF" strokeWidth="2" />
+          <path d="M22 22 H 42" stroke="#A5B4FC" strokeWidth="2.5" strokeLinecap="round" />
+          <path d="M22 30 H 38" stroke="#C7D2FE" strokeWidth="2" strokeLinecap="round" />
+          <path d="M22 38 H 42" stroke="#C7D2FE" strokeWidth="2" strokeLinecap="round" />
+          <circle cx="22" cy="46" r="2.5" fill="#6366F1" />
+          <path d="M28 46 H 42" stroke="#A5B4FC" strokeWidth="2" strokeLinecap="round" />
+          {/* rx symbol top-right */}
+          <text x="44" y="20" textAnchor="end" fontFamily="ui-sans-serif" fontSize="8" fontWeight="700" fill="#6366F1">℞</text>
+        </svg>
+      );
+    case "patient":
+      return (
+        <svg viewBox="0 0 64 64" className={cls} aria-hidden="true">
+          <circle cx="32" cy="22" r="10" fill="#FBCFE8" stroke="#F9A8D4" strokeWidth="1.5" />
+          <path d="M12 56 C 14 44, 22 38, 32 38 C 42 38, 50 44, 52 56 Z" fill="#FCE7F3" stroke="#F9A8D4" strokeWidth="1.5" />
+          <path d="M32 32 v 6 M 29 35 h 6" stroke="#EC4899" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      );
+    case "record":
+      return (
+        <svg viewBox="0 0 64 64" className={cls} aria-hidden="true">
+          {/* folder */}
+          <path d="M8 20 L 8 52 C 8 54, 9 56, 11 56 L 53 56 C 55 56, 56 54, 56 52 L 56 24 C 56 22, 55 20, 53 20 L 30 20 L 26 14 L 11 14 C 9 14, 8 16, 8 18 Z"
+            fill="#FEF3C7" stroke="#FBBF24" strokeWidth="1.5" />
+          {/* sheet */}
+          <rect x="16" y="28" width="32" height="20" rx="2" fill="#fff" stroke="#FCD34D" strokeWidth="1.2" />
+          <path d="M20 34 H 44 M 20 40 H 40" stroke="#F59E0B" strokeWidth="1.6" strokeLinecap="round" />
+        </svg>
+      );
+    case "queue":
+      return (
+        <svg viewBox="0 0 64 64" className={cls} aria-hidden="true">
+          {/* clipboard with checkmark */}
+          <rect x="14" y="10" width="36" height="46" rx="4" fill="#ECFDF5" stroke="#34D399" strokeWidth="1.5" />
+          <rect x="22" y="6" width="20" height="8" rx="2" fill="#10B981" />
+          <path d="M22 32 L 28 38 L 42 24" fill="none" stroke="#10B981" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M22 46 H 42" stroke="#6EE7B7" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+      );
+    case "doctor":
+      return (
+        <svg viewBox="0 0 64 64" className={cls} aria-hidden="true">
+          {/* doctor head + coat + stethoscope */}
+          <circle cx="32" cy="24" r="11" fill="#FDE8CF" stroke="#F59E0B" strokeWidth="1.2" />
+          <path d="M18 22 C 18 12, 46 12, 46 22 C 46 18, 40 14, 32 14 C 24 14, 18 18, 18 22 Z" fill="#1E293B" opacity="0.9" />
+          <path d="M8 64 C 14 46, 22 42, 32 42 C 42 42, 50 46, 56 64 Z" fill="#3B82F6" />
+          <path d="M22 50 C 22 56, 30 60, 32 60 C 34 60, 42 56, 42 50" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+          <circle cx="32" cy="60" r="3" fill="#0EA5E9" />
+        </svg>
+      );
+  }
+};
+
+export default EmptyIllustration;
+
+
+========== FILE: src/components/common/Float.tsx ==========
+
+import React from "react";
+import { cn } from "@/lib/utils";
+
+type Speed = "slow" | "slower" | "drift";
+
+interface Props {
+  children: React.ReactNode;
+  speed?: Speed;
+  className?: string;
+  as?: keyof JSX.IntrinsicElements;
+  /** Pause the animation on hover (useful for interactive elements). */
+  pauseOnHover?: boolean;
+}
+
+const speedClass: Record<Speed, string> = {
+  slow: "motion-safe:animate-float-slow",
+  slower: "motion-safe:animate-float-slower",
+  drift: "motion-safe:animate-drift",
+};
+
+/**
+ * Wraps children in a slowly floating container.
+ * - `slow`   → 4.5s up/down by 6px  (default; hero illustrations, big avatars)
+ * - `slower` → 6s   up/down by 3px  (small icons inside cards)
+ * - `drift`  → 8s   tiny 2px drift with a sub-degree tilt (cards / banners)
+ *
+ * Uses GPU-accelerated `transform: translateY` only — cheap and accessible.
+ * Respects `prefers-reduced-motion: reduce` via Tailwind's `motion-safe:` variant.
+ */
+export const Float: React.FC<Props> = ({
+  children,
+  speed = "slow",
+  className,
+  as: Tag = "div",
+  pauseOnHover = false,
+}) => {
+  return (
+    <Tag
+      className={cn(
+        speedClass[speed],
+        pauseOnHover && "hover:[animation-play-state:paused]",
+        className
+      )}
+    >
+      {children}
+    </Tag>
+  );
+};
+
+export default Float;
+
+
+========== FILE: src/components/common/Skeletons.tsx ==========
+
+import React from "react";
+import { Skeleton } from "@/components/ui/skeleton";
+
+/**
+ * Family of skeleton blocks used while data is loading.
+ * Each is a small, theme-faithful placeholder for a real component.
+ */
+
+export const CardSkeleton: React.FC<{ lines?: number; className?: string }> = ({
+  lines = 3,
+  className,
+}) => (
+  <div className={`rounded-xl border border-border bg-card p-5 ${className ?? ""}`}>
+    <Skeleton className="mb-3 h-4 w-1/3" />
+    {Array.from({ length: lines }).map((_, i) => (
+      <Skeleton
+        key={i}
+        className="mb-2 h-3"
+        style={{ width: `${100 - i * 8}%` }}
+      />
+    ))}
+  </div>
+);
+
+export const RowSkeleton: React.FC<{ className?: string }> = ({ className }) => (
+  <div className={`flex items-center gap-3 px-5 py-4 ${className ?? ""}`}>
+    <Skeleton className="h-9 w-9 rounded-full" />
+    <div className="flex-1 space-y-2">
+      <Skeleton className="h-3 w-1/3" />
+      <Skeleton className="h-3 w-1/2" />
+    </div>
+    <Skeleton className="h-5 w-16" />
+  </div>
+);
+
+export const TableSkeleton: React.FC<{ rows?: number; className?: string }> = ({
+  rows = 5,
+  className,
+}) => (
+  <div className={`rounded-xl border border-border bg-card ${className ?? ""}`}>
+    <div className="border-b border-border px-5 py-3">
+      <Skeleton className="h-3 w-1/4" />
+    </div>
+    {Array.from({ length: rows }).map((_, i) => (
+      <RowSkeleton key={i} className={i < rows - 1 ? "border-b border-border" : ""} />
+    ))}
+  </div>
+);
+
+export const CardGridSkeleton: React.FC<{ cards?: number; className?: string }> = ({
+  cards = 6,
+  className,
+}) => (
+  <div
+    className={`grid gap-4 sm:grid-cols-2 lg:grid-cols-3 ${className ?? ""}`}
+  >
+    {Array.from({ length: cards }).map((_, i) => (
+      <CardSkeleton key={i} lines={3} />
+    ))}
+  </div>
+);
+
+export const StatCardSkeleton: React.FC = () => (
+  <div className="rounded-xl border border-border bg-card p-5">
+    <Skeleton className="mb-3 h-3 w-1/3" />
+    <div className="flex items-center gap-3">
+      <Skeleton className="h-12 w-12 rounded-xl" />
+      <div className="space-y-2">
+        <Skeleton className="h-6 w-16" />
+        <Skeleton className="h-3 w-20" />
+      </div>
+    </div>
+  </div>
+);
+
+export const DashboardSkeleton: React.FC = () => (
+  <div className="space-y-6">
+    <Skeleton className="h-32 w-full rounded-2xl" />
+    <div className="grid gap-4 sm:grid-cols-3">
+      <StatCardSkeleton />
+      <StatCardSkeleton />
+      <StatCardSkeleton />
+    </div>
+    <div className="grid gap-6 md:grid-cols-2">
+      <CardSkeleton lines={4} />
+      <CardSkeleton lines={4} />
+    </div>
+  </div>
+);
+
+
+========== FILE: src/components/appointment/BookAppointmentDialog.tsx ==========
+
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { doctorService } from "@/services/doctorService";
+import { appointmentService } from "@/services/appointmentService";
+import { toast } from "sonner";
+import { formatDate } from "@/lib/formatters";
+import { SectionLoader } from "@/components/common/SectionLoader";
+import { Search } from "lucide-react";
+import type { DoctorDTO } from "@/types/doctor.types";
+import type { AvailabilitySlot } from "@/types/appointment.types";
+
+interface Props {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onBooked?: () => void;
+  /** When set, the dialog opens with this doctor pre-selected. */
+  initialDoctorId?: string;
+}
+
+export const BookAppointmentDialog: React.FC<Props> = ({
+  open,
+  onOpenChange,
+  onBooked,
+  initialDoctorId,
+}) => {
+  const [doctors, setDoctors] = useState<DoctorDTO[]>([]);
+  const [doctorId, setDoctorId] = useState<string>("");
+  const [date, setDate] = useState<string>("");
+  const [availability, setAvailability] = useState<AvailabilitySlot[]>([]);
+  const [loadingDoctors, setLoadingDoctors] = useState(false);
+  const [loadingSlots, setLoadingSlots] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  // category / specialization filter
+  const [category, setCategory] = useState("");
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    if (!open) return;
+    setLoadingDoctors(true);
+    doctorService
+      .getAllDoctors()
+      .then((r) => setDoctors(r.data))
+      .catch(() => setDoctors([]))
+      .finally(() => setLoadingDoctors(false));
+  }, [open]);
+
+  // Pre-select the requested doctor whenever the dialog opens.
+  useEffect(() => {
+    if (open && initialDoctorId) {
+      setDoctorId(initialDoctorId);
+    }
+  }, [open, initialDoctorId]);
+
+  // Build the filtered list when category / search / doctors change.
+  const filteredDoctors = useMemo(() => {
+    const cat = category.trim().toLowerCase();
+    const q = search.trim().toLowerCase();
+    return doctors.filter((d) => {
+      const matchesCat = cat
+        ? (d.specialization ?? "").toLowerCase().includes(cat)
+        : true;
+      const matchesQ = q
+        ? (d.name ?? "").toLowerCase().includes(q) ||
+          (d.specialization ?? "").toLowerCase().includes(q)
+        : true;
+      return matchesCat && matchesQ;
+    });
+  }, [doctors, category, search]);
+
+  // Available specializations for the category dropdown (sorted, deduped).
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    doctors.forEach((d) => {
+      if (d.specialization && d.specialization.trim()) {
+        set.add(d.specialization.trim());
+      }
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [doctors]);
+
+  useEffect(() => {
+    if (!doctorId) {
+      setAvailability([]);
+      return;
+    }
+    setLoadingSlots(true);
+    appointmentService
+      .getAvailability(doctorId)
+      .then((r) => setAvailability(r.data))
+      .catch(() => setAvailability([]))
+      .finally(() => setLoadingSlots(false));
+  }, [doctorId]);
+
+  const handleBook = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErr(null);
+    if (!doctorId || !date) {
+      setErr("Select a doctor and a date.");
+      return;
+    }
+    try {
+      setSubmitting(true);
+      await appointmentService.bookAppointment({
+        doctorId: Number(doctorId),
+        appointmentDate: date,
+      });
+      toast.success("Appointment booked");
+      onBooked?.();
+      onOpenChange(false);
+      setDoctorId("");
+      setDate("");
+      setCategory("");
+      setSearch("");
+    } catch {
+      /* interceptor already toasted */
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Book an appointment</DialogTitle>
+          <DialogDescription>
+            Pick a category, then choose a doctor and a date. The system assigns
+            you a queue slot automatically.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleBook} className="space-y-3">
+          {err && <p className="text-xs text-destructive">{err}</p>}
+
+          {/* Category / specialization filter */}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label>Category</Label>
+              <select
+                value={category}
+                onChange={(e) => {
+                  setCategory(e.target.value);
+                  setDoctorId("");
+                  setDate("");
+                }}
+                className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm"
+              >
+                <option value="">All specializations</option>
+                {categories.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <Label>Search</Label>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setDoctorId("");
+                    setDate("");
+                  }}
+                  placeholder="Doctor or specialization"
+                  className="pl-9"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <Label>Doctor</Label>
+            {loadingDoctors ? (
+              <SectionLoader label="Loading doctors..." />
+            ) : filteredDoctors.length === 0 ? (
+              <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                No doctors match this filter.
+              </p>
+            ) : (
+              <select
+                value={doctorId}
+                onChange={(e) => setDoctorId(e.target.value)}
+                className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm"
+                required
+              >
+                <option value="">Select a doctor</option>
+                {filteredDoctors.map((d) => (
+                  <option key={String(d.id)} value={String(d.id)}>
+                    {d.name} — {d.specialization}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          <div className="space-y-1">
+            <Label>Date</Label>
+            <Input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              required
+            />
+          </div>
+
+          {doctorId && (
+            <div className="rounded-lg border border-border bg-muted/40 p-3">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Availability (next 2 weeks)
+              </p>
+              {loadingSlots ? (
+                <SectionLoader label="Checking slots..." />
+              ) : availability.filter((s) => s.availableSlots > 0).length === 0 ? (
+                <p className="text-xs text-muted-foreground">No slots available.</p>
+              ) : (
+                <div className="flex max-h-40 flex-wrap gap-2 overflow-y-auto">
+                  {availability
+                    .filter((s) => s.availableSlots > 0)
+                    .map((s) => (
+                      <button
+                        key={s.date}
+                        type="button"
+                        onClick={() => setDate(s.date)}
+                        className={`rounded-md border px-2 py-1 text-xs ${
+                          date === s.date
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border bg-background text-foreground hover:bg-muted"
+                        }`}
+                      >
+                        {formatDate(s.date)} ({s.availableSlots} left)
+                      </button>
+                    ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? "Booking..." : "Book appointment"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+export default BookAppointmentDialog;
+
+
+========== FILE: src/components/dashboard/WelcomeBanner.tsx ==========
+
+import React from "react";
+import { Calendar } from "lucide-react";
+import doctorImg from "@/assets/doctor-illustration.png";
+import { Float } from "@/components/common/Float";
+
+interface WelcomeBannerProps {
+  name: string;
+}
+
+const WelcomeBanner: React.FC<WelcomeBannerProps> = ({ name }) => {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+  const timeStr = now.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+
+  return (
+    <div className="banner-gradient relative overflow-hidden rounded-2xl p-6 text-primary-foreground md:p-8">
+      <div className="relative z-10 max-w-md">
+        <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-primary-foreground/20 px-3 py-1 text-xs">
+          <Calendar className="h-3 w-3" />
+          {dateStr} {timeStr}
+        </div>
+        <h1 className="text-2xl font-bold md:text-3xl">Good Day, {name}!</h1>
+        <p className="mt-1 text-sm text-primary-foreground/80">Have a Nice Day!</p>
+      </div>
+
+      {/* Floating doctor illustration — gentle up/down motion */}
+      <Float
+        speed="slow"
+        className="absolute -right-4 -top-2 hidden md:block"
+      >
+        <img
+          src={doctorImg}
+          alt="Doctor"
+          className="h-48 w-auto object-contain opacity-90 drop-shadow-lg"
+          width={192}
+          height={192}
+        />
+      </Float>
+
+      {/* Decorative circles — slower, subtler drift, layered with the figure */}
+      <Float
+        speed="slower"
+        className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-primary-foreground/10"
+      />
+      <Float
+        speed="slower"
+        className="absolute -bottom-8 right-20 h-24 w-24 rounded-full bg-primary-foreground/5"
+      />
+    </div>
+  );
+};
+
+export default WelcomeBanner;
+
+
+========== FILE: src/components/dashboard/StatsCard.tsx ==========
+
+import React from "react";
+import { TrendingUp, TrendingDown, Minus, Activity, Users, FlaskConical, type LucideIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+type Variant = "offline" | "online" | "lab" | "sky" | "emerald" | "violet" | "amber";
+
+interface StatsCardProps {
+  label: string;
+  value: number | string;
+  subtitle: string;
+  change: string;
+  changeType: "positive" | "negative" | "neutral";
+  variant?: Variant;
+  icon?: LucideIcon;
+}
+
+const variantStyle: Record<Variant, { bg: string; ring: string; iconBg: string; iconColor: string; badge: string }> = {
+  offline: {
+    bg: "bg-gradient-to-br from-sky-50 to-indigo-50 dark:from-sky-950/40 dark:to-indigo-950/40",
+    ring: "ring-sky-200/40 dark:ring-sky-800/40",
+    iconBg: "bg-sky-100 dark:bg-sky-900/50",
+    iconColor: "text-sky-600 dark:text-sky-400",
+    badge: "bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300",
+  },
+  online: {
+    bg: "bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/40",
+    ring: "ring-emerald-200/40 dark:ring-emerald-800/40",
+    iconBg: "bg-emerald-100 dark:bg-emerald-900/50",
+    iconColor: "text-emerald-600 dark:text-emerald-400",
+    badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300",
+  },
+  lab: {
+    bg: "bg-gradient-to-br from-violet-50 to-fuchsia-50 dark:from-violet-950/40 dark:to-fuchsia-950/40",
+    ring: "ring-violet-200/40 dark:ring-violet-800/40",
+    iconBg: "bg-violet-100 dark:bg-violet-900/50",
+    iconColor: "text-violet-600 dark:text-violet-400",
+    badge: "bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300",
+  },
+  sky: {
+    bg: "bg-gradient-to-br from-sky-50 to-cyan-50 dark:from-sky-950/40 dark:to-cyan-950/40",
+    ring: "ring-sky-200/40 dark:ring-sky-800/40",
+    iconBg: "bg-sky-100 dark:bg-sky-900/50",
+    iconColor: "text-sky-600 dark:text-sky-400",
+    badge: "bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300",
+  },
+  emerald: {
+    bg: "bg-gradient-to-br from-emerald-50 to-green-50 dark:from-emerald-950/40 dark:to-green-950/40",
+    ring: "ring-emerald-200/40 dark:ring-emerald-800/40",
+    iconBg: "bg-emerald-100 dark:bg-emerald-900/50",
+    iconColor: "text-emerald-600 dark:text-emerald-400",
+    badge: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300",
+  },
+  violet: {
+    bg: "bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/40 dark:to-purple-950/40",
+    ring: "ring-violet-200/40 dark:ring-violet-800/40",
+    iconBg: "bg-violet-100 dark:bg-violet-900/50",
+    iconColor: "text-violet-600 dark:text-violet-400",
+    badge: "bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300",
+  },
+  amber: {
+    bg: "bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/40",
+    ring: "ring-amber-200/40 dark:ring-amber-800/40",
+    iconBg: "bg-amber-100 dark:bg-amber-900/50",
+    iconColor: "text-amber-600 dark:text-amber-400",
+    badge: "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300",
+  },
+};
+
+const defaultIcon: Record<Variant, LucideIcon> = {
+  offline: Activity,
+  online: Users,
+  lab: FlaskConical,
+  sky: Activity,
+  emerald: Users,
+  violet: FlaskConical,
+  amber: Activity,
+};
+
+export const StatsCard: React.FC<StatsCardProps> = ({
+  label,
+  value,
+  subtitle,
+  change,
+  changeType,
+  variant = "sky",
+  icon,
+}) => {
+  const style = variantStyle[variant];
+  const Icon = icon ?? defaultIcon[variant];
+  const TrendIcon =
+    changeType === "positive" ? TrendingUp : changeType === "negative" ? TrendingDown : Minus;
+
+  return (
+    <div
+      className={cn(
+        "rounded-xl border border-border p-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md",
+        style.bg,
+        "ring-1",
+        style.ring
+      )}
+    >
+      <div className="flex items-center justify-between">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          {label}
+        </h3>
+        {change && (
+          <span
+            className={cn(
+              "rounded-full px-2 py-0.5 text-[10px] font-semibold",
+              changeType === "positive" && "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300",
+              changeType === "negative" && "bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300",
+              changeType === "neutral" && style.badge
+            )}
+          >
+            {change}
+          </span>
+        )}
+      </div>
+      <div className="mt-4 flex items-center gap-4">
+        <div className={cn("flex h-12 w-12 items-center justify-center rounded-xl", style.iconBg)}>
+          <Icon className={cn("h-6 w-6", style.iconColor)} />
+        </div>
+        <div>
+          <p className="text-2xl font-bold text-foreground">{value}</p>
+          <p className="text-xs text-muted-foreground">{subtitle}</p>
+        </div>
+      </div>
+      <div className="mt-3 flex items-center gap-1 text-xs text-muted-foreground">
+        <TrendIcon className="h-3 w-3" />
+        <span>vs last week</span>
+      </div>
+    </div>
+  );
+};
+
+export default StatsCard;
+
+
+========== FILE: src/components/dashboard/AppointmentCard.tsx ==========
+
+import React from "react";
+import type { Appointment } from "@/types/prescription.types";
+
+interface AppointmentCardProps {
+  appointments: Appointment[];
+  highlightDate?: string;
+}
+
+const colorMap: Record<string, string> = {
+  blue: "bg-primary",
+  green: "bg-success",
+  orange: "bg-warning",
+  red: "bg-destructive",
+  purple: "bg-chart-purple",
+};
+
+const AppointmentCard: React.FC<AppointmentCardProps> = ({ appointments, highlightDate }) => {
+  const today = new Date();
+  const targetDate = highlightDate || today.toISOString().split("T")[0];
+  const target = new Date(targetDate);
+
+  const highlightDay = target.getDate();
+  const monthName = target.toLocaleString("default", { month: "long" });
+  const displayDate = `${monthName.toUpperCase()}, ${highlightDay}`;
+
+  // Week row
+  const startDay = highlightDay - target.getDay();
+  const weekDays = Array.from({ length: 7 }, (_, i) => startDay + i);
+
+  // Filter today’s appointments
+  const todaysAppointments = appointments.filter(a => a.date === targetDate);
+
+  const totalClients = todaysAppointments.length;
+  const remainingClients = todaysAppointments.filter(a => a.status !== "completed").length;
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-5">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-foreground">MY CALENDAR</h3>
+        <span className="rounded-lg bg-primary px-3 py-1 text-xs text-primary-foreground">
+          {monthName}
+        </span>
+      </div>
+
+      {/* Week */}
+      <div className="mt-4 grid grid-cols-7 gap-1 text-center text-xs">
+        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+          <span key={d} className="text-muted-foreground">{d}</span>
+        ))}
+        {weekDays.map((n) => (
+          <span
+            key={n}
+            className={`flex h-8 w-8 items-center justify-center rounded-full text-sm mx-auto ${n === highlightDay
+                ? "bg-primary text-primary-foreground font-semibold"
+                : "text-foreground"
+              }`}
+          >
+            {n > 0 ? n : ""}
+          </span>
+        ))}
+      </div>
+
+      {/* Summary */}
+      <div className="mt-4 flex items-center justify-between text-sm border-t border-border pt-3">
+        {todaysAppointments.length > 0 && todaysAppointments[0].doctorName ? (
+          <>
+            <div>
+              <p className="text-xs text-muted-foreground">Doctor</p>
+              <p className="text-sm font-medium text-foreground">
+                {todaysAppointments[0].doctorName}
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-muted-foreground">Time</p>
+              <p className="text-sm font-medium text-foreground">
+                {todaysAppointments[0].time}
+              </p>
+            </div>
+          </>
+        ) : (
+          <>
+            <div>
+              <p className="text-xs text-muted-foreground">Total Clients Today</p>
+              <p className="text-lg font-bold text-foreground">{totalClients}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs text-muted-foreground">Remaining</p>
+              <p className="text-lg font-bold text-foreground">{remainingClients}</p>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Events */}
+      <div className="mt-4">
+        <p className="mb-3 text-xs font-semibold text-muted-foreground">
+          {displayDate}
+        </p>
+
+        {todaysAppointments.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No appointments</p>
+        ) : (
+          <div className="space-y-2.5 max-h-48 overflow-y-auto scrollbar-thin">
+            {todaysAppointments.map((apt) => (
+              <div key={apt.id} className="flex items-start gap-3">
+                <span className="mt-1.5 text-xs text-muted-foreground whitespace-nowrap">
+                  {apt.time}
+                </span>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`h-2 w-2 rounded-full ${colorMap[apt.color] || "bg-primary"
+                      }`}
+                  />
+                  <span className="text-sm text-foreground">
+                    {apt.title}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default AppointmentCard;
+
+========== FILE: src/components/dashboard/ProfileCard.tsx ==========
+
+import React from "react";
+import type { User } from "@/types/user.types";
+import { MapPin, Edit } from "lucide-react";
+import { Float } from "@/components/common/Float";
+
+interface ProfileCardProps {
+  user: User;
+}
+
+const ProfileCard: React.FC<ProfileCardProps> = ({ user }) => {
+  const initials = (user.name || "?")
+    .trim()
+    .split(/\s+/)
+    .map((s) => s[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase() || "?";
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-5 transition-shadow hover:shadow-md">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-foreground">MY PROFILE</h3>
+        <button className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-transform hover:scale-105">
+          <Edit className="h-4 w-4" />
+        </button>
+      </div>
+      <div className="mt-4 flex flex-col items-center text-center">
+        <Float speed="slower">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary-light text-xl font-bold text-primary ring-2 ring-primary/20">
+            {initials}
+          </div>
+        </Float>
+        <h4 className="mt-3 text-base font-semibold text-foreground">{user.name}</h4>
+        {user.specialization && (
+          <span className="mt-0.5 text-xs font-medium uppercase tracking-wider text-primary">
+            {user.specialization}
+          </span>
+        )}
+        {user.location && (
+          <span className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+            <MapPin className="h-3 w-3" /> {user.location}
+          </span>
+        )}
+      </div>
+
+      <div className="mt-5 grid grid-cols-3 gap-2 text-center">
+        {user.dateOfBirth && (
+          <div>
+            <p className="text-[10px] text-muted-foreground">Date Birth</p>
+            <p className="text-sm font-semibold text-foreground">{user.dateOfBirth}</p>
+          </div>
+        )}
+        {user.bloodGroup && (
+          <div>
+            <p className="text-[10px] text-muted-foreground">Blood</p>
+            <p className="text-sm font-semibold text-foreground">{user.bloodGroup}</p>
+          </div>
+        )}
+        {user.workingHours && (
+          <div>
+            <p className="text-[10px] text-muted-foreground">Working Hours</p>
+            <p className="text-sm font-semibold text-foreground">{user.workingHours}</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default ProfileCard;
+
+
+========== FILE: src/components/dashboard/QuickActions.tsx ==========
+
+import React from "react";
+import { Link } from "react-router-dom";
+import {
+  LayoutDashboard,
+  Users,
+  FileText,
+  ClipboardList,
+  UserCircle,
+  FolderOpen,
+  Calendar,
+  Stethoscope,
+  Pill,
+  type LucideIcon,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+
+const iconMap: Record<string, LucideIcon> = {
+  LayoutDashboard,
+  Users,
+  FileText,
+  ClipboardList,
+  UserCircle,
+  FolderOpen,
+  Calendar,
+  Stethoscope,
+  Pill,
+};
+
+export type ActionTint = "sky" | "emerald" | "violet" | "amber" | "rose";
+
+export interface QuickActionItem {
+  label: string;
+  to: string;
+  icon: string;
+  tint?: ActionTint;
+  description?: string;
+  /** If set, the action triggers this callback instead of navigating. */
+  onClick?: () => void;
+}
+
+interface Props {
+  actions: QuickActionItem[];
+  className?: string;
+}
+
+const tintStyle: Record<
+  ActionTint,
+  { bg: string; ring: string; iconBg: string; iconColor: string; hover: string }
+> = {
+  sky: {
+    bg: "bg-gradient-to-br from-sky-50 to-cyan-50 dark:from-sky-950/40 dark:to-cyan-950/40",
+    ring: "ring-sky-200/40 dark:ring-sky-800/40",
+    iconBg: "bg-sky-100 dark:bg-sky-900/50",
+    iconColor: "text-sky-600 dark:text-sky-400",
+    hover: "hover:border-sky-300 dark:hover:border-sky-700",
+  },
+  emerald: {
+    bg: "bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/40 dark:to-teal-950/40",
+    ring: "ring-emerald-200/40 dark:ring-emerald-800/40",
+    iconBg: "bg-emerald-100 dark:bg-emerald-900/50",
+    iconColor: "text-emerald-600 dark:text-emerald-400",
+    hover: "hover:border-emerald-300 dark:hover:border-emerald-700",
+  },
+  violet: {
+    bg: "bg-gradient-to-br from-violet-50 to-fuchsia-50 dark:from-violet-950/40 dark:to-fuchsia-950/40",
+    ring: "ring-violet-200/40 dark:ring-violet-800/40",
+    iconBg: "bg-violet-100 dark:bg-violet-900/50",
+    iconColor: "text-violet-600 dark:text-violet-400",
+    hover: "hover:border-violet-300 dark:hover:border-violet-700",
+  },
+  amber: {
+    bg: "bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/40 dark:to-orange-950/40",
+    ring: "ring-amber-200/40 dark:ring-amber-800/40",
+    iconBg: "bg-amber-100 dark:bg-amber-900/50",
+    iconColor: "text-amber-600 dark:text-amber-400",
+    hover: "hover:border-amber-300 dark:hover:border-amber-700",
+  },
+  rose: {
+    bg: "bg-gradient-to-br from-rose-50 to-pink-50 dark:from-rose-950/40 dark:to-pink-950/40",
+    ring: "ring-rose-200/40 dark:ring-rose-800/40",
+    iconBg: "bg-rose-100 dark:bg-rose-900/50",
+    iconColor: "text-rose-600 dark:text-rose-400",
+    hover: "hover:border-rose-300 dark:hover:border-rose-700",
+  },
+};
+
+/**
+ * Row of large, colored action cards used near the top of dashboards.
+ * Designed to give the user a clear next move without scrolling.
+ */
+export const QuickActions: React.FC<Props> = ({ actions, className }) => {
+  return (
+    <div className={cn("grid gap-3 sm:grid-cols-3", className)}>
+      {actions.map((a) => {
+        const Icon = iconMap[a.icon] || LayoutDashboard;
+        const tint = tintStyle[a.tint ?? "sky"];
+        const className = cn(
+          "group flex items-center gap-4 rounded-xl border border-border p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md",
+          tint.bg,
+          "ring-1",
+          tint.ring,
+          tint.hover
+        );
+        const inner = (
+          <>
+            <div
+              className={cn(
+                "flex h-12 w-12 shrink-0 items-center justify-center rounded-xl transition-transform group-hover:scale-110",
+                tint.iconBg
+              )}
+            >
+              <Icon className={cn("h-6 w-6", tint.iconColor)} />
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold text-foreground">{a.label}</p>
+              {a.description && (
+                <p className="truncate text-xs text-muted-foreground">{a.description}</p>
+              )}
+            </div>
+          </>
+        );
+        if (a.onClick) {
+          return (
+            <button
+              key={a.label}
+              type="button"
+              onClick={a.onClick}
+              className={cn(className, "text-left")}
+            >
+              {inner}
+            </button>
+          );
+        }
+        return (
+          <Link key={a.to} to={a.to} className={className}>
+            {inner}
+          </Link>
+        );
+      })}
+    </div>
+  );
+};
+
+export default QuickActions;
+
+
+========== FILE: src/components/dashboard/ScheduledEvents.tsx ==========
+
+import React from "react";
+
+interface Props {
+  completed: number;
+  remaining: number;
+  isWeekend: boolean;
+}
+
+const ScheduledEvents: React.FC<Props> = ({
+  completed,
+  remaining,
+  isWeekend,
+}) => {
+  const total = completed + remaining || 1;
+
+  const completedPercent = Math.round((completed / total) * 100);
+  const remainingPercent = 100 - completedPercent;
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-5">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-foreground">
+          MY SCHEDULED EVENTS
+        </h3>
+        <span
+          className={`rounded-full px-3 py-1 text-xs text-white ${
+            isWeekend ? "bg-red-500" : "bg-primary"
+          }`}
+        >
+          Today
+        </span>
+      </div>
+
+      <div className="mt-6 flex items-center gap-6">
+        <div className="relative flex h-28 w-28 items-center justify-center">
+          <svg viewBox="0 0 36 36" className="h-28 w-28 -rotate-90">
+            <circle
+              cx="18"
+              cy="18"
+              r="14"
+              fill="none"
+              stroke="hsl(var(--muted))"
+              strokeWidth="3.5"
+            />
+            <circle
+              cx="18"
+              cy="18"
+              r="14"
+              fill="none"
+              stroke="hsl(var(--primary))"
+              strokeWidth="3.5"
+              strokeDasharray={`${completedPercent} ${remainingPercent}`}
+              strokeLinecap="round"
+            />
+          </svg>
+
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className="text-2xl font-bold text-foreground">
+              {completedPercent}
+            </span>
+            <span className="text-[10px] text-muted-foreground">% DONE</span>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xl font-bold text-primary">
+              {completed}
+            </span>
+            <span className="text-xs text-muted-foreground">Completed</span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xl font-bold text-chart-orange">
+              {remaining}
+            </span>
+            <span className="text-xs text-muted-foreground">Remaining</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ScheduledEvents;
+
+========== FILE: src/types/doctor.types.ts ==========
+
+import type { Id } from "./api.types";
+
+export interface DoctorDTO {
+  id: Id;
+  name: string;
+  email: string;
+  specialization: string;
+  experience: number;
+}
+
+export interface DoctorRequest {
+  name: string;
+  email: string;
+  specialization: string;
+  experience: number;
+}
+
+
+========== FILE: src/types/patient.types.ts ==========
+
+import type { Id } from "./api.types";
+
+export interface PatientDTO {
+  id: Id;
+  name: string;
+  email: string;
+  age: number;
+  phone: string;
+  gender: string;
+  address: string;
+}
+
+export interface PatientRequest {
+  name: string;
+  email: string;
+  age: number;
+  phone: string;
+  gender: string;
+  address: string;
+}
+
+
+========== FILE: src/types/appointment.types.ts ==========
+
+import type { Id } from "./api.types";
+
+export type AppointmentStatus = "PENDING" | "COMPLETED" | "CANCELLED";
+
+export interface AppointmentDTO {
+  id: Id;
+  doctorId: Id;
+  doctorName: string;
+  patientId: Id;
+  patientName: string;
+  appointmentDate: string; // LocalDate → "YYYY-MM-DD"
+  appointmentTime: string; // LocalTime → "HH:mm:ss"
+  queueNumber: number;
+  status: AppointmentStatus;
+}
+
+export interface AppointmentRequest {
+  doctorId: number;
+  appointmentDate: string; // YYYY-MM-DD
+}
+
+export interface AvailabilitySlot {
+  date: string;
+  availableSlots: number;
+  doctorName: string;
+}
+
+
+========== FILE: src/types/prescription.types.ts ==========
+
+import type { Id } from "./api.types";
+
+export interface PrescriptionItemDTO {
+  id?: Id;
+  medicineName: string;
+  dosage: string;
+  frequency: string;
+  duration: string;
+}
+
+export interface PrescriptionDTO {
+  id: Id;
+  date: string; // YYYY-MM-DD
+  diagnosis?: string;
+  notes?: string;
+  doctorId: Id;
+  doctorName: string;
+  patientId: Id;
+  patientName: string;
+  items: PrescriptionItemDTO[];
+}
+
+export interface PrescriptionRequest {
+  appointmentId: number;
+  diagnosis?: string;
+  notes?: string;
+  items: PrescriptionItemDTO[];
+}
+
+export interface PrescriptionByEmailRequest {
+  appointmentId: number;
+  patientEmail: string;
+  diagnosis?: string;
+  notes?: string;
+  items: PrescriptionItemDTO[];
+}
+
+
+========== FILE: src/types/dashboard.types.ts ==========
+
+import type { Id } from "./api.types";
+
+export interface NextAppointmentDTO {
+  patientName: string;
+  time: string; // LocalTime
+}
+
+export interface UpcomingAppointmentDTO {
+  doctorName: string;
+  date: string;
+  time: string;
+}
+
+export interface DoctorDashboardDTO {
+  doctorId: Id;
+  doctorName: string;
+  totalPatients: number;
+  todayAppointments: number;
+  completedAppointments: number;
+  nextAppointments: NextAppointmentDTO[];
+  totalAppointmentsInWindow: number;
+  completedAppointmentsInWindow: number;
+}
+
+export interface PatientDashboardDTO {
+  patientId: Id;
+  patientName: string;
+  totalAppointments: number;
+  totalPrescriptions: number;
+  upcomingAppointments: UpcomingAppointmentDTO[];
+}
+

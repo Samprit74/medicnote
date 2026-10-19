@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+  CardFooter,
+} from "@/components/ui/card";
+
 import type { DoctorDTO, DoctorRequest } from "@/types/doctor.types";
 
 interface Props {
@@ -48,37 +49,69 @@ export const DoctorEditDialog: React.FC<Props> = ({
     }
   }, [doctor, open]);
 
-  const set = (k: keyof DoctorRequest) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    setForm((f) => ({ ...f, [k]: k === "experience" ? Number(e.target.value) : e.target.value }));
+  const set =
+    (k: keyof DoctorRequest) =>
+      (e: React.ChangeEvent<HTMLInputElement>) =>
+        setForm((f) => ({
+          ...f,
+          [k]: k === "experience" ? Number(e.target.value) : e.target.value,
+        }));
+
+  if (!open) {
+    return null;
+  }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Edit doctor</DialogTitle>
-        </DialogHeader>
-        <form
-          onSubmit={async (e) => {
-            e.preventDefault();
-            await onSubmit(form);
-          }}
-          className="space-y-3"
-        >
+    <Card className="mx-auto mt-4 max-w-md rounded-xl border border-border bg-white/80 shadow-lg backdrop-blur-sm">
+      <CardHeader>
+        <CardTitle className="text-xl font-semibold">
+          Edit Doctor
+        </CardTitle>
+      </CardHeader>
+
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          await onSubmit(form);
+        }}
+        className="space-y-4"
+      >
+        <CardContent className="space-y-4">
           <div className="space-y-1">
-            <Label>Name</Label>
-            <Input value={form.name} onChange={set("name")} required />
-          </div>
-          <div className="space-y-1">
-            <Label>Email</Label>
-            <Input type="email" value={form.email} onChange={set("email")} required />
-          </div>
-          <div className="space-y-1">
-            <Label>Specialization</Label>
-            <Input value={form.specialization} onChange={set("specialization")} required />
-          </div>
-          <div className="space-y-1">
-            <Label>Experience (years)</Label>
+            <Label htmlFor="doctor-name">Name</Label>
             <Input
+              id="doctor-name"
+              value={form.name}
+              onChange={set("name")}
+              required
+            />
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="doctor-email">Email</Label>
+            <Input
+              id="doctor-email"
+              type="email"
+              value={form.email}
+              readOnly
+              required
+            />
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="doctor-specialization">Specialization</Label>
+            <Input
+              id="doctor-specialization"
+              value={form.specialization}
+              onChange={set("specialization")}
+              required
+            />
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="doctor-experience">Experience (years)</Label>
+            <Input
+              id="doctor-experience"
               type="number"
               min={0}
               value={form.experience}
@@ -86,17 +119,23 @@ export const DoctorEditDialog: React.FC<Props> = ({
               required
             />
           </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit" disabled={submitting}>
-              {submitting ? "Saving..." : "Save changes"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+        </CardContent>
+
+        <CardFooter className="flex justify-end space-x-2 pt-4">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+          >
+            Cancel
+          </Button>
+
+          <Button type="submit" disabled={submitting}>
+            {submitting ? "Saving..." : "Save changes"}
+          </Button>
+        </CardFooter>
+      </form>
+    </Card>
   );
 };
 

@@ -27,15 +27,18 @@ import com.medicnote.backend.service.DashboardService;
 @Service
 public class DashboardServiceImpl implements DashboardService {
 
-    private static final Logger logger = LoggerFactory.getLogger(DashboardServiceImpl.class);
+    private static final Logger logger =
+            LoggerFactory.getLogger(DashboardServiceImpl.class);
 
     private final AppointmentRepository appointmentRepository;
     private final PrescriptionRepository prescriptionRepository;
     private final UserRepository userRepository;
 
-    public DashboardServiceImpl(AppointmentRepository appointmentRepository,
+    public DashboardServiceImpl(
+            AppointmentRepository appointmentRepository,
             PrescriptionRepository prescriptionRepository,
             UserRepository userRepository) {
+
         this.appointmentRepository = appointmentRepository;
         this.prescriptionRepository = prescriptionRepository;
         this.userRepository = userRepository;
@@ -44,60 +47,107 @@ public class DashboardServiceImpl implements DashboardService {
     @Override
     public DoctorDashboardDTO getDoctorDashboard(Long userId) {
 
-        logger.info("Fetching dashboard for user {}", userId);
+        logger.info("Fetching doctor dashboard for userId={}", userId);
 
         Doctor doctor = resolveDoctor(userId);
         Long doctorId = doctor.getId();
 
+        logger.debug(
+                "Resolved doctor profile: userId={}, doctorId={}, doctorName={}",
+                userId, doctorId, doctor.getName());
+
         LocalDate today = LocalDate.now();
         LocalDate endDate = today.plusWeeks(2);
 
-        long totalPatients = safeCount(() -> appointmentRepository.countDistinctPatientIdByDoctor_Id(doctorId));
+        long totalPatients = safeCount(
+                "countDistinctPatientIdByDoctor_Id",
+                () -> appointmentRepository
+                        .countDistinctPatientIdByDoctor_Id(doctorId));
 
-        long todayAppointments = safeCount(() -> appointmentRepository.countByDoctorIdAndAppointmentDateAndStatusNot(
-                doctorId,
-                today,
-                AppointmentStatus.CANCELLED));
+        long todayAppointments = safeCount(
+                "countByDoctorIdAndAppointmentDateAndStatusNot",
+                () -> appointmentRepository
+                        .countByDoctorIdAndAppointmentDateAndStatusNot(
+                                doctorId,
+                                today,
+                                AppointmentStatus.CANCELLED));
 
-        long completedAppointments = safeCount(() -> appointmentRepository.countByDoctorIdAndAppointmentDateAndStatus(
-                doctorId,
-                today,
-                AppointmentStatus.COMPLETED));
+        long completedAppointments = safeCount(
+                "countByDoctorIdAndAppointmentDateAndStatus",
+                () -> appointmentRepository
+                        .countByDoctorIdAndAppointmentDateAndStatus(
+                                doctorId,
+                                today,
+                                AppointmentStatus.COMPLETED));
 
         long totalAppointmentsInWindow = 0;
         long completedAppointmentsInWindow = 0;
 
         try {
-            Object[] stats = appointmentRepository.getDashboardStats(doctorId, today, endDate);
+            logger.debug(
+                    "Fetching doctor dashboard statistics: doctorId={}, startDate={}, endDate={}",
+                    doctorId, today, endDate);
 
-            if (stats != null) {
-                totalAppointmentsInWindow = ((Number) stats[0]).longValue();
+            Object[] stats = appointmentRepository.getDashboardStats(
+                    doctorId, today, endDate);
+
+            if (stats != null && stats.length >= 2) {
+                totalAppointmentsInWindow = stats[0] != null
+                        ? ((Number) stats[0]).longValue()
+                        : 0;
+
                 completedAppointmentsInWindow = stats[1] != null
                         ? ((Number) stats[1]).longValue()
                         : 0;
+
+                logger.debug(
+                        "Doctor dashboard statistics retrieved: doctorId={}, totalInWindow={}, completedInWindow={}",
+                        doctorId,
+                        totalAppointmentsInWindow,
+                        completedAppointmentsInWindow);
+            } else {
+                logger.warn(
+                        "Dashboard statistics returned null or incomplete data: doctorId={}",
+                        doctorId);
             }
+
         } catch (Exception e) {
-            logger.error("Error fetching dashboard stats", e);
+            logger.error(
+                    "Failed to fetch doctor dashboard statistics: userId={}, doctorId={}",
+                    userId, doctorId, e);
         }
 
         List<NextAppointmentDTO> nextAppointments;
 
         try {
+            logger.debug(
+                    "Fetching next two pending appointments: doctorId={}, date={}",
+                    doctorId, today);
+
             nextAppointments = appointmentRepository
                     .findTop2ByDoctorIdAndAppointmentDateAndStatusOrderByQueueNumberAsc(
                             doctorId,
                             today,
                             AppointmentStatus.PENDING)
                     .stream()
-                    .map(a -> {
+                    .map(appointment -> {
                         NextAppointmentDTO dto = new NextAppointmentDTO();
-                        dto.setPatientName(a.getPatient().getName());
-                        dto.setTime(a.getAppointmentTime());
+                        dto.setPatientName(
+                                appointment.getPatient().getName());
+                        dto.setTime(appointment.getAppointmentTime());
                         return dto;
                     })
                     .collect(Collectors.toList());
+
+            logger.debug(
+                    "Next appointments retrieved: doctorId={}, count={}",
+                    doctorId, nextAppointments.size());
+
         } catch (Exception e) {
-            logger.error("Failed to fetch next appointments", e);
+            logger.error(
+                    "Failed to fetch next appointments: userId={}, doctorId={}",
+                    userId, doctorId, e);
+
             nextAppointments = List.of();
         }
 
@@ -111,40 +161,72 @@ public class DashboardServiceImpl implements DashboardService {
         dto.setTotalAppointmentsInWindow(totalAppointmentsInWindow);
         dto.setCompletedAppointmentsInWindow(completedAppointmentsInWindow);
 
+        logger.info(
+                "Doctor dashboard assembled successfully: userId={}, doctorId={}, totalPatients={}, todayAppointments={}, completedAppointments={}",
+                userId,
+                doctorId,
+                totalPatients,
+                todayAppointments,
+                completedAppointments);
+
         return dto;
     }
 
     @Override
     public PatientDashboardDTO getPatientDashboard(Long userId) {
 
-        logger.info("Fetching dashboard for user {}", userId);
+        logger.info("Fetching patient dashboard for userId={}", userId);
 
         Patient patient = resolvePatient(userId);
         Long patientId = patient.getId();
 
-        long totalAppointments = safeCount(() -> appointmentRepository.countByPatientId(patientId));
+        logger.debug(
+                "Resolved patient profile: userId={}, patientId={}, patientName={}",
+                userId, patientId, patient.getName());
 
-        long totalPrescriptions = safeCount(() -> prescriptionRepository.countByPatientId(patientId));
+        long totalAppointments = safeCount(
+                "countByPatientId",
+                () -> appointmentRepository.countByPatientId(patientId));
+
+        long totalPrescriptions = safeCount(
+                "countByPatientId",
+                () -> prescriptionRepository.countByPatientId(patientId));
 
         List<UpcomingAppointmentDTO> upcomingAppointments;
 
         try {
+            logger.debug(
+                    "Fetching upcoming pending appointments: patientId={}",
+                    patientId);
+
             upcomingAppointments = appointmentRepository
                     .findTop3ByPatientIdAndAppointmentDateAfterAndStatusOrderByAppointmentDateAsc(
                             patientId,
                             LocalDate.now(),
                             AppointmentStatus.PENDING)
                     .stream()
-                    .map(a -> {
-                        UpcomingAppointmentDTO dto = new UpcomingAppointmentDTO();
-                        dto.setDoctorName(a.getDoctor().getName());
-                        dto.setDate(a.getAppointmentDate());
-                        dto.setTime(a.getAppointmentTime());
+                    .map(appointment -> {
+                        UpcomingAppointmentDTO dto =
+                                new UpcomingAppointmentDTO();
+
+                        dto.setDoctorName(
+                                appointment.getDoctor().getName());
+                        dto.setDate(appointment.getAppointmentDate());
+                        dto.setTime(appointment.getAppointmentTime());
+
                         return dto;
                     })
                     .collect(Collectors.toList());
+
+            logger.debug(
+                    "Upcoming appointments retrieved: patientId={}, count={}",
+                    patientId, upcomingAppointments.size());
+
         } catch (Exception e) {
-            logger.error("Failed to fetch upcoming appointments", e);
+            logger.error(
+                    "Failed to fetch upcoming appointments: userId={}, patientId={}",
+                    userId, patientId, e);
+
             upcomingAppointments = List.of();
         }
 
@@ -155,42 +237,93 @@ public class DashboardServiceImpl implements DashboardService {
         dto.setTotalPrescriptions(totalPrescriptions);
         dto.setUpcomingAppointments(upcomingAppointments);
 
+        logger.info(
+                "Patient dashboard assembled successfully: userId={}, patientId={}, totalAppointments={}, totalPrescriptions={}, upcomingAppointments={}",
+                userId,
+                patientId,
+                totalAppointments,
+                totalPrescriptions,
+                upcomingAppointments.size());
+
         return dto;
     }
 
     private Doctor resolveDoctor(Long userId) {
 
+        logger.debug("Resolving doctor profile for userId={}", userId);
+
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> {
+                    logger.error(
+                            "User not found while resolving doctor profile: userId={}",
+                            userId);
+
+                    return new ResourceNotFoundException("User not found");
+                });
 
         Doctor doctor = user.getDoctor();
 
         if (doctor == null) {
+            logger.error(
+                    "DOCTOR PROFILE NULL in DashboardServiceImpl.resolveDoctor(): userId={}, role={}",
+                    userId, user.getRole());
+
             throw new AccessDeniedException("Not a doctor");
         }
+
+        logger.debug(
+                "Doctor profile resolved successfully: userId={}, doctorId={}",
+                userId, doctor.getId());
 
         return doctor;
     }
 
     private Patient resolvePatient(Long userId) {
 
+        logger.debug("Resolving patient profile for userId={}", userId);
+
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() -> {
+                    logger.error(
+                            "User not found while resolving patient profile: userId={}",
+                            userId);
+
+                    return new ResourceNotFoundException("User not found");
+                });
 
         Patient patient = user.getPatient();
 
         if (patient == null) {
+            logger.error(
+                    "PATIENT PROFILE NULL in DashboardServiceImpl.resolvePatient(): userId={}, role={}",
+                    userId, user.getRole());
+
             throw new AccessDeniedException("Not a patient");
         }
+
+        logger.debug(
+                "Patient profile resolved successfully: userId={}, patientId={}",
+                userId, patient.getId());
 
         return patient;
     }
 
-    private long safeCount(Supplier<Long> supplier) {
+    private long safeCount(String queryName, Supplier<Long> supplier) {
+
         try {
-            return supplier.get();
+            long result = supplier.get();
+
+            logger.debug(
+                    "Dashboard count query completed: query={}, result={}",
+                    queryName, result);
+
+            return result;
+
         } catch (Exception e) {
-            logger.error("Error executing dashboard query", e);
+            logger.error(
+                    "Error executing dashboard count query: query={}",
+                    queryName, e);
+
             return 0;
         }
     }

@@ -19,32 +19,89 @@ public class PrescriptionResponseDTO {
 
     private List<PrescriptionItemResponseDTO> items;
 
-    public PrescriptionResponseDTO() {}
+    public PrescriptionResponseDTO() {
+    }
 
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
+    public Long getId() {
+        return id;
+    }
 
-    public LocalDate getDate() { return date; }
-    public void setDate(LocalDate date) { this.date = date; }
+    public void setId(Long id) {
+        this.id = id;
+    }
 
-    public String getDiagnosis() { return diagnosis; }
-    public void setDiagnosis(String diagnosis) { this.diagnosis = diagnosis; }
+    public LocalDate getDate() {
+        return date;
+    }
 
-    public String getNotes() { return notes; }
-    public void setNotes(String notes) { this.notes = notes; }
+    public void setDate(LocalDate date) {
+        this.date = date;
+    }
 
-    public Long getDoctorId() { return doctorId; }
-    public void setDoctorId(Long doctorId) { this.doctorId = doctorId; }
+    public String getDiagnosis() {
+        return diagnosis;
+    }
 
-    public String getDoctorName() { return doctorName; }
-    public void setDoctorName(String doctorName) { this.doctorName = doctorName; }
+    public void setDiagnosis(String diagnosis) {
+        this.diagnosis = diagnosis;
+    }
 
-    public Long getPatientId() { return patientId; }
-    public void setPatientId(Long patientId) { this.patientId = patientId; }
+    public String getNotes() {
+        return notes;
+    }
 
-    public String getPatientName() { return patientName; }
-    public void setPatientName(String patientName) { this.patientName = patientName; }
+    public void setNotes(String notes) {
+        this.notes = notes;
+    }
 
-    public List<PrescriptionItemResponseDTO> getItems() { return items; }
-    public void setItems(List<PrescriptionItemResponseDTO> items) { this.items = items; }
+    public Long getDoctorId() {
+        return doctorId;
+    }
+
+    public void setDoctorId(Long doctorId) {
+        this.doctorId = doctorId;
+    }
+
+    public String getDoctorName() {
+        return doctorName;
+    }
+
+    public void setDoctorName(String doctorName) {
+        this.doctorName = doctorName;
+    }
+
+    public Long getPatientId() {
+        return patientId;
+    }
+
+    public void setPatientId(Long patientId) {
+        this.patientId = patientId;
+    }
+
+    public String getPatientName() {
+        return patientName;
+    }
+
+    public void setPatientName(String patientName) {
+        this.patientName = patientName;
+    }
+
+    public List<PrescriptionItemResponseDTO> getItems() {
+        return items;
+    }
+
+    public void setItems(List<PrescriptionItemResponseDTO> items) {
+        this.items = items;
+    }
+
+    private Long appointmentId;
+
+    public Long getAppointmentId() {
+        return appointmentId;
+    }
+
+    public void setAppointmentId(Long appointmentId) {
+        this.appointmentId = appointmentId;
+    }
+
 }

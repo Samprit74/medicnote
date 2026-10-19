@@ -1,0 +1,604 @@
+
+
+
+========== FILE: src/pages/doctor/DoctorDashboard.tsx ==========
+import React from "react";
+import DashboardLayout from "@/components/layout/DashboardLayout";
+import WelcomeBanner from "@/components/dashboard/WelcomeBanner";
+import StatsCard from "@/components/dashboard/StatsCard";
+import ScheduledEvents from "@/components/dashboard/ScheduledEvents";
+import AppointmentCard from "@/components/dashboard/AppointmentCard";
+import ProfileCard from "@/components/dashboard/ProfileCard";
+import { QuickActions } from "@/components/dashboard/QuickActions";
+import { DashboardSkeleton } from "@/components/common/Skeletons";
+import { useAuth } from "@/hooks/useAuth";
+import { useApi } from "@/hooks/useApi";
+import { dashboardService } from "@/services/dashboardService";
+import { Button } from "@/components/ui/button";
+import { RefreshCw } from "lucide-react";
+import { todayIso, formatTime } from "@/lib/formatters";
+import type { DoctorDashboardDTO, NextAppointmentDTO } from "@/types/dashboard.types";
+import type { AppointmentDTO } from "@/types/appointment.types";
+
+const DoctorDashboard: React.FC = () => {
+  const { user } = useAuth();
+  const { data, loading, error, refetch } = useApi<DoctorDashboardDTO>(
+    () => dashboardService.getDoctorDashboard(),
+    []
+  );
+
+  if (!user) return null;
+
+  if (loading && !data) {
+    return (
+      <DashboardLayout>
+        <DashboardSkeleton />
+      </DashboardLayout>
+    );
+  }
+
+  const today = todayIso();
+  const completed = data?.completedAppointments ?? 0;
+  const total = data?.todayAppointments ?? 0;
+  const remaining = Math.max(0, total - completed);
+  const todayDate = new Date();
+  const isWeekend = todayDate.getDay() === 0 || todayDate.getDay() === 6;
+
+  // Map dashboard next-appointments to the shape AppointmentCard / PrescriptionListPreview expect.
+  const nextAppointments: NextAppointmentDTO[] = data?.nextAppointments ?? [];
+  const upcomingItems = nextAppointments.map((a, i) => ({
+    id: i,
+    patientName: a.patientName,
+    time: formatTime(a.time),
+  }));
+
+  // AppointmentCard expects AppointmentDTO[]; render empty since today's list is in Queue.
+  const appointmentsForCard: AppointmentDTO[] = [];
+
+  // Profile card uses `name` (specialization from DTO).
+  const profileUser = {
+    ...user,
+    name: data?.doctorName || user.name,
+    specialization: data?.doctorName ? undefined : user.specialization,
+  };
+
+  return (
+    <DashboardLayout>
+      <div className="mb-3 flex items-center justify-between">
+        <h1 className="sr-only">Doctor dashboard</h1>
+        <Button variant="outline" size="sm" onClick={refetch} disabled={loading}>
+          <RefreshCw className={`mr-2 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+          Refresh
+        </Button>
+      </div>
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="space-y-6 lg:col-span-2">
+          <WelcomeBanner name={(data?.doctorName || user.name).split(" ")[0]} />
+
+          <div className="grid gap-4 sm:grid-cols-3">
+            <StatsCard
+              label="Total Patients Served"
+              value={data?.totalPatients ?? 0}
+              subtitle="patients"
+              change="+12%"
+              changeType="positive"
+              variant="sky"
+            />
+            <StatsCard
+              label="Appointments Today"
+              value={total}
+              subtitle="appointments"
+              change={total > 0 ? `${total} new` : "0 new"}
+              changeType="neutral"
+              variant="emerald"
+            />
+            <StatsCard
+              label="Completed Today"
+              value={completed}
+              subtitle="completed"
+              change={`${Math.round((completed / Math.max(1, total)) * 100)}%`}
+              changeType="positive"
+              variant="violet"
+            />
+          </div>
+
+          <QuickActions
+            actions={[
+              { label: "Today's queue", to: "/doctor/queue", icon: "ClipboardList", tint: "emerald" },
+              { label: "New prescription", to: "/doctor/prescriptions", icon: "FileText", tint: "violet" },
+              { label: "Search patients", to: "/doctor/patients", icon: "Users", tint: "sky" },
+            ]}
+          />
+
+          <div className="grid gap-6 md:grid-cols-2">
+            <ScheduledEvents
+              completed={completed}
+              remaining={remaining}
+              isWeekend={isWeekend}
+            />
+            <UpcomingAppointmentsCard items={upcomingItems} loading={loading} error={error?.message ?? null} onRetry={refetch} />
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <ProfileCard user={profileUser} />
+          <AppointmentCard appointments={appointmentsForCard} highlightDate={today} />
+        </div>
+      </div>
+    </DashboardLayout>
+  );
+};
+
+interface UpcomingProps {
+  items: { id: number; patientName: string; time: string }[];
+  loading: boolean;
+  error: string | null;
+  onRetry: () => void;
+}
+
+const UpcomingAppointmentsCard: React.FC<UpcomingProps> = ({ items, loading, error, onRetry }) => {
+  return (
+    <div className="rounded-xl border border-border bg-card p-5">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-foreground">UPCOMING APPOINTMENTS</h3>
+        <span className="text-xs font-medium text-primary">Today</span>
+      </div>
+      <div className="mt-4 space-y-3">
+        {loading ? (
+          <p className="text-xs text-muted-foreground">Loading...</p>
+        ) : error ? (
+          <div>
+            <p className="text-xs text-destructive">{error}</p>
+            <Button size="sm" variant="outline" onClick={onRetry} className="mt-2">
+              Retry
+            </Button>
+          </div>
+        ) : items.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No upcoming appointments</p>
+        ) : (
+          items.map((apt) => (
+            <div key={apt.id} className="flex items-center justify-between text-sm">
+              <span className="text-foreground">{apt.patientName}</span>
+              <span className="text-muted-foreground">{apt.time}</span>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default DoctorDashboard;
+
+
+
+========== FILE: src/pages/doctor/DoctorPatients.tsx ==========
+[FILE NOT FOUND]
+
+
+========== FILE: src/pages/doctor/DoctorPrescriptions.tsx ==========
+[FILE NOT FOUND]
+
+
+========== FILE: src/pages/doctor/DoctorQueue.tsx ==========
+[FILE NOT FOUND]
+
+
+========== FILE: src/pages/doctor/DoctorProfile.tsx ==========
+[FILE NOT FOUND]
+
+
+========== FILE: src/services/patientService.ts ==========
+import axiosClient from "@/api/axiosClient";
+import { ENDPOINTS } from "@/api/endpoints";
+import type { PatientDTO, PatientRequest } from "@/types/patient.types";
+import type { Id, PageResponse } from "@/types/api.types";
+
+export const patientService = {
+  /** PATIENT — own profile */
+  getProfile: () =>
+    axiosClient.get<PatientDTO>(ENDPOINTS.patients.me),
+
+  /** PATIENT — update own */
+  updateProfile: (data: PatientRequest) =>
+    axiosClient.put<PatientDTO>(ENDPOINTS.patients.me, data),
+
+  /** ADMIN — list all paginated */
+  getAll: (page = 0, size = 7) =>
+    axiosClient.get<PageResponse<PatientDTO>>(ENDPOINTS.patients.base, {
+      params: { page, size },
+    }),
+
+  /** ADMIN — update by id */
+  updateByAdmin: (id: Id, data: PatientRequest) =>
+    axiosClient.put<PatientDTO>(ENDPOINTS.patients.byId(id), data),
+
+  /** ADMIN — delete */
+  delete: (id: Id) =>
+    axiosClient.delete<void>(ENDPOINTS.patients.byId(id)),
+
+  /** DOCTOR — patients of logged-in doctor (paginated) */
+  getDoctorPatients: (page = 0, size = 7) =>
+    axiosClient.get<PageResponse<PatientDTO>>(ENDPOINTS.patients.doctorMe, {
+      params: { page, size },
+    }),
+
+  /** DOCTOR — search patients by keyword. The 403 is silenced so the
+   *  caller can render an inline error (admin role is not allowed to
+   *  use this doctor-side endpoint). */
+  searchPatients: (keyword: string, page = 0, size = 7) =>
+    axiosClient.get<PageResponse<PatientDTO>>(ENDPOINTS.patients.doctorMeSearch, {
+      params: { keyword, page, size },
+      __silent403: true,
+    }),
+
+  /** DOCTOR — patients for a specific date */
+  getTodayPatients: (date: string, page = 0, size = 7) =>
+    axiosClient.get<PageResponse<PatientDTO>>(ENDPOINTS.patients.doctorMeToday, {
+      params: { date, page, size },
+    }),
+
+  /** DOCTOR — patients in a date range */
+  getWeeklyPatients: (start: string, end: string, page = 0, size = 7) =>
+    axiosClient.get<PageResponse<PatientDTO>>(ENDPOINTS.patients.doctorMeWeekly, {
+      params: { start, end, page, size },
+    }),
+};
+
+
+
+========== FILE: src/services/doctorService.ts ==========
+import axiosClient from "@/api/axiosClient";
+import { ENDPOINTS } from "@/api/endpoints";
+import type { DoctorDTO, DoctorRequest } from "@/types/doctor.types";
+import type { Id, PageResponse } from "@/types/api.types";
+
+export const doctorService = {
+  /** DOCTOR, ADMIN — own profile */
+  getMyProfile: () =>
+    axiosClient.get<DoctorDTO>(ENDPOINTS.doctors.me),
+
+  /** ADMIN, PATIENT — list all */
+  getAllDoctors: () =>
+    axiosClient.get<DoctorDTO[]>(ENDPOINTS.doctors.base),
+
+  /** ADMIN — create */
+  createDoctor: (data: DoctorRequest) =>
+    axiosClient.post<DoctorDTO>(ENDPOINTS.doctors.base, data),
+
+  /** DOCTOR, ADMIN — update own */
+  updateMyProfile: (data: DoctorRequest) =>
+    axiosClient.put<DoctorDTO>(ENDPOINTS.doctors.me, data),
+
+  /** ADMIN — update by id */
+  updateDoctorByAdmin: (id: Id, data: DoctorRequest) =>
+    axiosClient.put<DoctorDTO>(ENDPOINTS.doctors.byId(id), data),
+
+  /** ADMIN — delete */
+  deleteDoctor: (id: Id) =>
+    axiosClient.delete<void>(ENDPOINTS.doctors.byId(id)),
+
+  /** ADMIN, PATIENT — search (non-paginated) */
+  searchDoctors: (params: { specialization?: string; experience?: number }) =>
+    axiosClient.get<DoctorDTO[]>(ENDPOINTS.doctors.search, { params }),
+
+  /** ADMIN, PATIENT — search paginated */
+  searchDoctorsPaginated: (
+    params: { specialization?: string; experience?: number },
+    page = 0,
+    size = 7
+  ) =>
+    axiosClient.get<PageResponse<DoctorDTO>>(ENDPOINTS.doctors.searchPaginated, {
+      params: { ...params, page, size },
+    }),
+};
+
+
+
+========== FILE: src/services/appointmentService.ts ==========
+import axiosClient from "@/api/axiosClient";
+import { ENDPOINTS } from "@/api/endpoints";
+import type {
+  AppointmentDTO,
+  AppointmentRequest,
+  AvailabilitySlot,
+} from "@/types/appointment.types";
+import type { Id, PageResponse } from "@/types/api.types";
+
+export const appointmentService = {
+  /** PATIENT — book */
+  bookAppointment: (data: AppointmentRequest) =>
+    axiosClient.post<AppointmentDTO>(ENDPOINTS.appointments.base, data),
+
+  /** DOCTOR, ADMIN — today's queue */
+  getDoctorQueue: () =>
+    axiosClient.get<AppointmentDTO[]>(ENDPOINTS.appointments.doctorMeQueue),
+
+  /** DOCTOR, ADMIN — paginated appointments for the logged-in doctor */
+  getDoctorAppointments: (page = 0, size = 10) =>
+    axiosClient.get<PageResponse<AppointmentDTO>>(ENDPOINTS.appointments.doctorMe, {
+      params: { page, size },
+    }),
+
+  /** PATIENT, ADMIN — paginated appointments for the logged-in patient */
+  getPatientAppointments: (page = 0, size = 10) =>
+    axiosClient.get<PageResponse<AppointmentDTO>>(ENDPOINTS.appointments.patientMe, {
+      params: { page, size },
+    }),
+
+  /** PATIENT, ADMIN — history (past appointments) */
+  getPatientHistory: (page = 0, size = 10) =>
+    axiosClient.get<PageResponse<AppointmentDTO>>(ENDPOINTS.appointments.patientMeHistory, {
+      params: { page, size },
+    }),
+
+  /** DOCTOR, ADMIN — update status */
+  updateStatus: (appointmentId: Id, status: string) =>
+    axiosClient.put<AppointmentDTO>(ENDPOINTS.appointments.status(appointmentId), null, {
+      params: { status },
+    }),
+
+  /** PATIENT, ADMIN — cancel */
+  cancelAppointment: (appointmentId: Id) =>
+    axiosClient.put<void>(ENDPOINTS.appointments.cancel(appointmentId)),
+
+  /** PATIENT, ADMIN — availability for a doctor (next 2 weeks, weekdays) */
+  getAvailability: (doctorId: Id) =>
+    axiosClient.get<AvailabilitySlot[]>(
+      ENDPOINTS.appointments.doctorAvailability(doctorId)
+    ),
+};
+
+
+
+========== FILE: src/services/prescriptionService.ts ==========
+import axiosClient from "@/api/axiosClient";
+import { ENDPOINTS } from "@/api/endpoints";
+import type {
+  PrescriptionByEmailRequest,
+  PrescriptionDTO,
+  PrescriptionRequest,
+} from "@/types/prescription.types";
+import type { Id, PageResponse } from "@/types/api.types";
+
+export const prescriptionService = {
+  /** DOCTOR — create using an appointment inside the body */
+  create: (data: PrescriptionRequest) =>
+    axiosClient.post<PrescriptionDTO>(ENDPOINTS.prescriptions.base, data),
+
+  /** DOCTOR — create using appointmentId as a query param */
+  createWithAppointment: (appointmentId: number, data?: PrescriptionRequest) =>
+    axiosClient.post<PrescriptionDTO>(ENDPOINTS.prescriptions.appointment, data ?? null, {
+      params: { appointmentId },
+    }),
+
+  /** DOCTOR — create using appointment + patient email */
+  createWithEmail: (data: PrescriptionByEmailRequest) =>
+    axiosClient.post<PrescriptionDTO>(ENDPOINTS.prescriptions.email, data),
+
+  /* ------------------------------------------------------------------
+   * Patient-side reads (logged-in patient's own prescriptions)
+   * ------------------------------------------------------------------ */
+
+  /** PATIENT, ADMIN — all prescriptions of the logged-in patient */
+  getMyPrescriptions: (page = 0, size = 7) =>
+    axiosClient.get<PageResponse<PrescriptionDTO>>(ENDPOINTS.prescriptions.patientMe, {
+      params: { page, size },
+    }),
+
+  /** PATIENT, ADMIN — by date */
+  getMyPrescriptionsByDate: (date: string, page = 0, size = 7) =>
+    axiosClient.get<PageResponse<PrescriptionDTO>>(ENDPOINTS.prescriptions.patientMeDate, {
+      params: { date, page, size },
+    }),
+
+  /** PATIENT, ADMIN — by doctor name */
+  getMyPrescriptionsByDoctor: (doctorName: string, page = 0, size = 7) =>
+    axiosClient.get<PageResponse<PrescriptionDTO>>(ENDPOINTS.prescriptions.patientMeDoctor, {
+      params: { doctorName, page, size },
+    }),
+
+  /** PATIENT, ADMIN — by date range */
+  getMyPrescriptionsByRange: (start: string, end: string, page = 0, size = 7) =>
+    axiosClient.get<PageResponse<PrescriptionDTO>>(ENDPOINTS.prescriptions.patientMeRange, {
+      params: { start, end, page, size },
+    }),
+
+  /* ------------------------------------------------------------------
+   * Doctor-side reads (a doctor viewing a specific patient)
+   * ------------------------------------------------------------------ */
+
+  /** DOCTOR, ADMIN — prescriptions for one patient of the logged-in doctor */
+  getDoctorPatientPrescriptions: (patientId: Id, page = 0, size = 7) =>
+    axiosClient.get<PageResponse<PrescriptionDTO>>(
+      ENDPOINTS.prescriptions.doctorMePatient(patientId),
+      { params: { page, size } }
+    ),
+
+  /** DOCTOR, ADMIN — prescriptions for the doctor on a specific date */
+  getDoctorPrescriptionsByDate: (date: string, page = 0, size = 7) =>
+    axiosClient.get<PageResponse<PrescriptionDTO>>(ENDPOINTS.prescriptions.doctorMeDate, {
+      params: { date, page, size },
+    }),
+
+  /* ------------------------------------------------------------------
+   * Single prescription
+   * ------------------------------------------------------------------ */
+
+  /** PATIENT, DOCTOR, ADMIN — fetch one */
+  getById: (id: Id) =>
+    axiosClient.get<PrescriptionDTO>(ENDPOINTS.prescriptions.byId(id)),
+
+  /** PATIENT, DOCTOR, ADMIN — PDF download */
+  download: (id: Id) =>
+    axiosClient.get<Blob>(ENDPOINTS.prescriptions.download(id), {
+      responseType: "blob",
+    }),
+};
+
+
+
+========== FILE: src/services/dashboardService.ts ==========
+import axiosClient from "@/api/axiosClient";
+import { ENDPOINTS } from "@/api/endpoints";
+import type { DoctorDashboardDTO, PatientDashboardDTO } from "@/types/dashboard.types";
+
+export const dashboardService = {
+  /** DOCTOR, ADMIN */
+  getDoctorDashboard: () =>
+    axiosClient.get<DoctorDashboardDTO>(ENDPOINTS.dashboard.doctorMe),
+
+  /** PATIENT, ADMIN */
+  getPatientDashboard: () =>
+    axiosClient.get<PatientDashboardDTO>(ENDPOINTS.dashboard.patientMe),
+};
+
+
+
+========== FILE: src/types/doctor.types.ts ==========
+import type { Id } from "./api.types";
+
+export interface DoctorDTO {
+  id: Id;
+  name: string;
+  email: string;
+  specialization: string;
+  experience: number;
+}
+
+export interface DoctorRequest {
+  name: string;
+  email: string;
+  specialization: string;
+  experience: number;
+}
+
+
+
+========== FILE: src/types/patient.types.ts ==========
+import type { Id } from "./api.types";
+
+export interface PatientDTO {
+  id: Id;
+  name: string;
+  email: string;
+  age: number;
+  phone: string;
+  gender: string;
+  address: string;
+}
+
+export interface PatientRequest {
+  name: string;
+  email: string;
+  age: number;
+  phone: string;
+  gender: string;
+  address: string;
+}
+
+
+
+========== FILE: src/types/appointment.types.ts ==========
+import type { Id } from "./api.types";
+
+export type AppointmentStatus = "PENDING" | "COMPLETED" | "CANCELLED";
+
+export interface AppointmentDTO {
+  id: Id;
+  doctorId: Id;
+  doctorName: string;
+  patientId: Id;
+  patientName: string;
+  appointmentDate: string; // LocalDate → "YYYY-MM-DD"
+  appointmentTime: string; // LocalTime → "HH:mm:ss"
+  queueNumber: number;
+  status: AppointmentStatus;
+}
+
+export interface AppointmentRequest {
+  doctorId: number;
+  appointmentDate: string; // YYYY-MM-DD
+}
+
+export interface AvailabilitySlot {
+  date: string;
+  availableSlots: number;
+  doctorName: string;
+}
+
+
+
+========== FILE: src/types/prescription.types.ts ==========
+import type { Id } from "./api.types";
+
+export interface PrescriptionItemDTO {
+  id?: Id;
+  medicineName: string;
+  dosage: string;
+  frequency: string;
+  duration: string;
+}
+
+export interface PrescriptionDTO {
+  id: Id;
+  date: string; // YYYY-MM-DD
+  diagnosis?: string;
+  notes?: string;
+  doctorId: Id;
+  doctorName: string;
+  patientId: Id;
+  patientName: string;
+  items: PrescriptionItemDTO[];
+}
+
+export interface PrescriptionRequest {
+  appointmentId: number;
+  diagnosis?: string;
+  notes?: string;
+  items: PrescriptionItemDTO[];
+}
+
+export interface PrescriptionByEmailRequest {
+  appointmentId: number;
+  patientEmail: string;
+  diagnosis?: string;
+  notes?: string;
+  items: PrescriptionItemDTO[];
+}
+
+
+
+========== FILE: src/types/dashboard.types.ts ==========
+import type { Id } from "./api.types";
+
+export interface NextAppointmentDTO {
+  patientName: string;
+  time: string; // LocalTime
+}
+
+export interface UpcomingAppointmentDTO {
+  doctorName: string;
+  date: string;
+  time: string;
+}
+
+export interface DoctorDashboardDTO {
+  doctorId: Id;
+  doctorName: string;
+  totalPatients: number;
+  todayAppointments: number;
+  completedAppointments: number;
+  nextAppointments: NextAppointmentDTO[];
+  totalAppointmentsInWindow: number;
+  completedAppointmentsInWindow: number;
+}
+
+export interface PatientDashboardDTO {
+  patientId: Id;
+  patientName: string;
+  totalAppointments: number;
+  totalPrescriptions: number;
+  upcomingAppointments: UpcomingAppointmentDTO[];
+}
+

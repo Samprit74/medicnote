@@ -5,11 +5,11 @@ import { Input } from "@/components/ui/input";
 import { PrescriptionItemEditor } from "./PrescriptionItemEditor";
 import type {
   PrescriptionItemDTO,
-  PrescriptionRequest,
+  PrescriptionByEmailRequest,
 } from "@/types/prescription.types";
 
 interface Props {
-  onSubmit: (data: PrescriptionRequest) => void | Promise<void>;
+  onSubmit: (data: PrescriptionByEmailRequest) => void | Promise<void>;
   submitting?: boolean;
 }
 
@@ -21,7 +21,7 @@ const emptyItem = (): PrescriptionItemDTO => ({
 });
 
 export const PrescriptionForm: React.FC<Props> = ({ onSubmit, submitting }) => {
-  const [appointmentId, setAppointmentId] = useState("");
+  const [patientEmail, setPatientEmail] = useState("");
   const [diagnosis, setDiagnosis] = useState("");
   const [notes, setNotes] = useState("");
   const [items, setItems] = useState<PrescriptionItemDTO[]>([emptyItem()]);
@@ -37,8 +37,8 @@ export const PrescriptionForm: React.FC<Props> = ({ onSubmit, submitting }) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!appointmentId) {
-      setError("Appointment ID is required.");
+    if (!patientEmail) {
+      setError("Patient email is required.");
       return;
     }
     const cleanedItems = items
@@ -63,17 +63,23 @@ export const PrescriptionForm: React.FC<Props> = ({ onSubmit, submitting }) => {
       return;
     }
 
-    await onSubmit({
-      appointmentId: Number(appointmentId),
-      diagnosis: diagnosis.trim() || undefined,
-      notes: notes.trim() || undefined,
-      items: cleanedItems,
-    });
+    try {
+      await onSubmit({
+        patientEmail: patientEmail.trim(),
+        diagnosis: diagnosis.trim() || undefined,
+        notes: notes.trim() || undefined,
+        items: cleanedItems,
+      });
 
-    setAppointmentId("");
-    setDiagnosis("");
-    setNotes("");
-    setItems([emptyItem()]);
+      // Clear form fields on successful submission
+      setPatientEmail("");
+      setDiagnosis("");
+      setNotes("");
+      setItems([emptyItem()]);
+    } catch (err) {
+      console.error('Prescription submission failed', err);
+      // Preserve form data on error; toast handled upstream
+    }
   };
 
   return (
@@ -84,10 +90,10 @@ export const PrescriptionForm: React.FC<Props> = ({ onSubmit, submitting }) => {
 
       <div className="grid gap-2 sm:grid-cols-2">
         <Input
-          type="number"
-          placeholder="Appointment ID"
-          value={appointmentId}
-          onChange={(e) => setAppointmentId(e.target.value)}
+          type="email"
+          placeholder="Patient Email"
+          value={patientEmail}
+          onChange={(e) => setPatientEmail(e.target.value)}
         />
         <Input
           placeholder="Diagnosis"

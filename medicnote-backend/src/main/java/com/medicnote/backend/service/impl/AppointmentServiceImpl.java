@@ -30,7 +30,11 @@ import com.medicnote.backend.util.PdfGenerator;
 @Service
 public class AppointmentServiceImpl implements AppointmentService {
 
-    private static final Logger logger = LoggerFactory.getLogger(AppointmentServiceImpl.class);
+    private static final Logger logger =
+            LoggerFactory.getLogger(AppointmentServiceImpl.class);
+
+    private static final String FALLBACK_THANK_YOU_MESSAGE =
+            "Thank you for choosing MedicNote. We appreciate your trust in our care.";
 
     private final AppointmentRepository appointmentRepository;
     private final DoctorRepository doctorRepository;
@@ -40,13 +44,15 @@ public class AppointmentServiceImpl implements AppointmentService {
     private final EmailService emailService;
     private final UserRepository userRepository;
 
-    public AppointmentServiceImpl(AppointmentRepository appointmentRepository,
+    public AppointmentServiceImpl(
+            AppointmentRepository appointmentRepository,
             DoctorRepository doctorRepository,
             PatientRepository patientRepository,
             AppointmentMapper appointmentMapper,
             PrescriptionRepository prescriptionRepository,
             EmailService emailService,
             UserRepository userRepository) {
+
         this.appointmentRepository = appointmentRepository;
         this.doctorRepository = doctorRepository;
         this.patientRepository = patientRepository;
@@ -58,9 +64,14 @@ public class AppointmentServiceImpl implements AppointmentService {
 
     @Override
     @Transactional
-    public AppointmentResponseDTO bookAppointment(AppointmentRequestDTO request, Long userId) {
+    public AppointmentResponseDTO bookAppointment(
+            AppointmentRequestDTO request,
+            Long userId) {
 
-        logger.info("Booking appointment for user {} with doctor {}", userId, request.getDoctorId());
+        logger.info(
+                "Booking appointment for user {} with doctor {}",
+                userId,
+                request.getDoctorId());
 
         LocalDate today = LocalDate.now();
         LocalDate endDate = today.plusWeeks(2);
@@ -75,6 +86,7 @@ public class AppointmentServiceImpl implements AppointmentService {
                 });
 
         Patient patient = user.getPatient();
+
         if (patient == null) {
             logger.error("User {} is not a patient", userId);
             throw new AccessDeniedException("Not a patient");
@@ -82,12 +94,16 @@ public class AppointmentServiceImpl implements AppointmentService {
 
         Doctor doctor = doctorRepository.findById(request.getDoctorId())
                 .orElseThrow(() -> {
-                    logger.error("Doctor not found: {}", request.getDoctorId());
+                    logger.error(
+                            "Doctor not found: {}",
+                            request.getDoctorId());
                     return new ResourceNotFoundException("Doctor not found");
                 });
 
-        List<Appointment> lockedAppointments = appointmentRepository.findByDoctorIdAndDateForUpdate(doctor.getId(),
-                selectedDate);
+        List<Appointment> lockedAppointments =
+                appointmentRepository.findByDoctorIdAndDateForUpdate(
+                        doctor.getId(),
+                        selectedDate);
 
         validateDuplicateBooking(lockedAppointments, patient.getId());
 
@@ -102,9 +118,13 @@ public class AppointmentServiceImpl implements AppointmentService {
         appointment.setQueueNumber(queue);
         appointment.setStatus(AppointmentStatus.PENDING);
 
-        logger.info("Appointment created with queue {} at {}", queue, time);
+        logger.info(
+                "Appointment created with queue {} at {}",
+                queue,
+                time);
 
-        return appointmentMapper.toDTO(appointmentRepository.save(appointment));
+        return appointmentMapper.toDTO(
+                appointmentRepository.save(appointment));
     }
 
     @Override
@@ -119,20 +139,26 @@ public class AppointmentServiceImpl implements AppointmentService {
                 });
 
         Doctor doctor = user.getDoctor();
+
         if (doctor == null) {
             logger.error("User {} is not a doctor", userId);
             throw new AccessDeniedException("Not a doctor");
         }
 
         return appointmentRepository
-                .findByDoctorIdAndAppointmentDateOrderByQueueNumberAsc(doctor.getId(), LocalDate.now())
+                .findByDoctorIdAndAppointmentDateOrderByQueueNumberAsc(
+                        doctor.getId(),
+                        LocalDate.now())
                 .stream()
                 .map(appointmentMapper::toDTO)
                 .collect(Collectors.toList());
     }
 
     @Override
-    public Page<AppointmentResponseDTO> getAppointmentsByDoctor(Long userId, int page, int size) {
+    public Page<AppointmentResponseDTO> getAppointmentsByDoctor(
+            Long userId,
+            int page,
+            int size) {
 
         logger.info("Fetching appointments for doctor user {}", userId);
 
@@ -143,17 +169,22 @@ public class AppointmentServiceImpl implements AppointmentService {
                 });
 
         Doctor doctor = user.getDoctor();
+
         if (doctor == null) {
             logger.error("User {} is not a doctor", userId);
             throw new AccessDeniedException("Not a doctor");
         }
 
-        return appointmentRepository.findByDoctorId(doctor.getId(), PageRequest.of(page, size))
+        return appointmentRepository
+                .findByDoctorId(doctor.getId(), PageRequest.of(page, size))
                 .map(appointmentMapper::toDTO);
     }
 
     @Override
-    public Page<AppointmentResponseDTO> getAppointmentsByPatient(Long userId, int page, int size) {
+    public Page<AppointmentResponseDTO> getAppointmentsByPatient(
+            Long userId,
+            int page,
+            int size) {
 
         logger.info("Fetching appointments for patient user {}", userId);
 
@@ -164,17 +195,22 @@ public class AppointmentServiceImpl implements AppointmentService {
                 });
 
         Patient patient = user.getPatient();
+
         if (patient == null) {
             logger.error("User {} is not a patient", userId);
             throw new AccessDeniedException("Not a patient");
         }
 
-        return appointmentRepository.findByPatientId(patient.getId(), PageRequest.of(page, size))
+        return appointmentRepository
+                .findByPatientId(patient.getId(), PageRequest.of(page, size))
                 .map(appointmentMapper::toDTO);
     }
 
     @Override
-    public Page<AppointmentResponseDTO> getPatientHistory(Long userId, int page, int size) {
+    public Page<AppointmentResponseDTO> getPatientHistory(
+            Long userId,
+            int page,
+            int size) {
 
         logger.info("Fetching appointment history for patient user {}", userId);
 
@@ -185,23 +221,31 @@ public class AppointmentServiceImpl implements AppointmentService {
                 });
 
         Patient patient = user.getPatient();
+
         if (patient == null) {
             logger.error("User {} is not a patient", userId);
             throw new AccessDeniedException("Not a patient");
         }
 
         return appointmentRepository
-                .findByPatientIdAndAppointmentDateBefore(
+                .findByPatientIdAndStatusOrderByAppointmentDateDesc(
                         patient.getId(),
-                        LocalDate.now(),
+                        AppointmentStatus.COMPLETED,
                         PageRequest.of(page, size))
                 .map(appointmentMapper::toDTO);
     }
 
     @Override
-    public AppointmentResponseDTO updateStatus(Long appointmentId, String status, Long userId) {
+    @Transactional
+    public AppointmentResponseDTO updateStatus(
+            Long appointmentId,
+            String status,
+            Long userId) {
 
-        logger.info("Updating status for appointment {} by user {}", appointmentId, userId);
+        logger.info(
+                "Updating status for appointment {} by user {}",
+                appointmentId,
+                userId);
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> {
@@ -210,29 +254,55 @@ public class AppointmentServiceImpl implements AppointmentService {
                 });
 
         Doctor doctor = user.getDoctor();
+
         if (doctor == null) {
             logger.error("User {} is not a doctor", userId);
             throw new AccessDeniedException("Not a doctor");
         }
 
-        Appointment appointment = appointmentRepository.findById(appointmentId)
+        Appointment appointment = appointmentRepository
+                .findById(appointmentId)
                 .orElseThrow(() -> {
-                    logger.error("Appointment not found: {}", appointmentId);
-                    return new ResourceNotFoundException("Appointment not found");
+                    logger.error(
+                            "Appointment not found: {}",
+                            appointmentId);
+                    return new ResourceNotFoundException(
+                            "Appointment not found");
                 });
 
         if (!appointment.getDoctor().getId().equals(doctor.getId())) {
-            logger.error("Doctor {} not allowed to update appointment {}", doctor.getId(), appointmentId);
+            logger.error(
+                    "Doctor {} not allowed to update appointment {}",
+                    doctor.getId(),
+                    appointmentId);
             throw new AccessDeniedException("Not allowed");
         }
 
         AppointmentStatus newStatus = parseStatus(status);
-        appointment.setStatus(newStatus);
+        AppointmentStatus previousStatus = appointment.getStatus();
 
+        // A completed appointment cannot be reopened or changed to another status.
+        if (previousStatus == AppointmentStatus.COMPLETED
+                && newStatus != AppointmentStatus.COMPLETED) {
+            throw new IllegalArgumentException(
+                    "A completed appointment cannot be modified");
+        }
+
+        // Repeating COMPLETED is idempotent: do not repeat the email workflow.
+        if (previousStatus == AppointmentStatus.COMPLETED
+                && newStatus == AppointmentStatus.COMPLETED) {
+            return appointmentMapper.toDTO(appointment);
+        }
+
+        appointment.setStatus(newStatus);
         Appointment saved = appointmentRepository.save(appointment);
 
+        // Run this workflow only on the first transition to COMPLETED.
         if (newStatus == AppointmentStatus.COMPLETED) {
-            logger.info("Appointment {} completed. Ensuring prescription + sending email.", appointmentId);
+            logger.info(
+                    "Appointment {} completed. Ensuring prescription and sending email.",
+                    appointmentId);
+
             Prescription prescription = ensurePrescriptionFor(saved);
             sendPrescriptionEmail(saved, prescription);
         }
@@ -241,26 +311,40 @@ public class AppointmentServiceImpl implements AppointmentService {
     }
 
     /**
-     * Make sure a {@link Prescription} row exists for the given appointment.
-     * <p>
-     * A doctor often marks an appointment as COMPLETED before writing the
-     * full prescription. The email send used to fail in that case because
-     * it looked up a non-existent prescription. Now we auto-create an
-     * empty one (tied to the appointment, dated with the appointment date)
-     * so the patient sees the record immediately and the email always
-     * succeeds. The doctor can then fill in the items via the existing
-     * /api/prescriptions/appointment endpoint.
+     * Returns the prescription already associated with this appointment.
+     * If none exists, creates a fallback prescription with a thank-you message
+     * and a dummy item so that the prescription PDF has an item to display.
      */
     private Prescription ensurePrescriptionFor(Appointment appointment) {
+
         return prescriptionRepository.findByAppointmentId(appointment.getId())
                 .orElseGet(() -> {
-                    logger.info("No prescription found for appointment {} — creating empty shell.", appointment.getId());
-                    Prescription p = new Prescription();
-                    p.setAppointment(appointment);
-                    p.setDoctor(appointment.getDoctor());
-                    p.setPatient(appointment.getPatient());
-                    p.setDate(appointment.getAppointmentDate());
-                    return prescriptionRepository.save(p);
+                    logger.info(
+                            "No prescription found for appointment {}. Creating fallback prescription.",
+                            appointment.getId());
+
+                    Prescription prescription = new Prescription();
+                    prescription.setAppointment(appointment);
+                    prescription.setDoctor(appointment.getDoctor());
+                    prescription.setPatient(appointment.getPatient());
+                    prescription.setDate(appointment.getAppointmentDate());
+                    prescription.setNotes(FALLBACK_THANK_YOU_MESSAGE);
+
+                    // Dummy item for the automatically generated fallback prescription.
+                    PrescriptionItem dummyItem = new PrescriptionItem();
+                    dummyItem.setMedicineName("N/A");
+                    dummyItem.setDosage("N/A");
+                    dummyItem.setFrequency("N/A");
+                    dummyItem.setDuration("N/A");
+
+                    // Maintains both sides of the Prescription-PrescriptionItem relationship.
+                    prescription.addItem(dummyItem);
+
+                    logger.info(
+                            "Fallback prescription and dummy item created for appointment {}",
+                            appointment.getId());
+
+                    return prescriptionRepository.save(prescription);
                 });
     }
 
@@ -268,7 +352,10 @@ public class AppointmentServiceImpl implements AppointmentService {
     @Transactional
     public void cancelAppointment(Long appointmentId, Long userId) {
 
-        logger.info("Cancelling appointment {} by user {}", appointmentId, userId);
+        logger.info(
+                "Cancelling appointment {} by user {}",
+                appointmentId,
+                userId);
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> {
@@ -277,19 +364,27 @@ public class AppointmentServiceImpl implements AppointmentService {
                 });
 
         Patient patient = user.getPatient();
+
         if (patient == null) {
             logger.error("User {} is not a patient", userId);
             throw new AccessDeniedException("Not a patient");
         }
 
-        Appointment appointment = appointmentRepository.findById(appointmentId)
+        Appointment appointment = appointmentRepository
+                .findById(appointmentId)
                 .orElseThrow(() -> {
-                    logger.error("Appointment not found: {}", appointmentId);
-                    return new ResourceNotFoundException("Appointment not found");
+                    logger.error(
+                            "Appointment not found: {}",
+                            appointmentId);
+                    return new ResourceNotFoundException(
+                            "Appointment not found");
                 });
 
         if (!appointment.getPatient().getId().equals(patient.getId())) {
-            logger.error("Patient {} not allowed to cancel appointment {}", patient.getId(), appointmentId);
+            logger.error(
+                    "Patient {} not allowed to cancel appointment {}",
+                    patient.getId(),
+                    appointmentId);
             throw new AccessDeniedException("Not allowed");
         }
 
@@ -297,18 +392,25 @@ public class AppointmentServiceImpl implements AppointmentService {
             return;
         }
 
+        if (appointment.getStatus() == AppointmentStatus.COMPLETED) {
+            throw new IllegalArgumentException(
+                    "A completed appointment cannot be cancelled");
+        }
+
         appointment.setStatus(AppointmentStatus.CANCELLED);
 
-        List<Appointment> appointments = appointmentRepository
-                .findByDoctorIdAndAppointmentDateOrderByQueueNumberAsc(
-                        appointment.getDoctor().getId(),
-                        appointment.getAppointmentDate());
+        List<Appointment> appointments =
+                appointmentRepository
+                        .findByDoctorIdAndAppointmentDateOrderByQueueNumberAsc(
+                                appointment.getDoctor().getId(),
+                                appointment.getAppointmentDate());
 
         int queue = 1;
 
         for (Appointment appt : appointments) {
-            if (appt.getStatus() == AppointmentStatus.CANCELLED)
+            if (appt.getStatus() == AppointmentStatus.CANCELLED) {
                 continue;
+            }
 
             appt.setQueueNumber(queue);
             appt.setAppointmentTime(calculateTime(queue));
@@ -332,8 +434,11 @@ public class AppointmentServiceImpl implements AppointmentService {
         LocalDate today = LocalDate.now();
         LocalDate endDate = today.plusWeeks(2);
 
-        List<Object[]> data = appointmentRepository
-                .countAppointmentsGroupedByDate(doctorId, today, endDate);
+        List<Object[]> data =
+                appointmentRepository.countAppointmentsGroupedByDate(
+                        doctorId,
+                        today,
+                        endDate);
 
         Map<LocalDate, Long> countMap = data.stream()
                 .collect(Collectors.toMap(
@@ -341,7 +446,6 @@ public class AppointmentServiceImpl implements AppointmentService {
                         row -> (Long) row[1]));
 
         List<AvailabilityResponseDTO> result = new ArrayList<>();
-
         LocalDate current = today;
 
         while (!current.isAfter(endDate)) {
@@ -364,7 +468,9 @@ public class AppointmentServiceImpl implements AppointmentService {
         return result;
     }
 
-    private void sendPrescriptionEmail(Appointment appointment, Prescription prescription) {
+    private void sendPrescriptionEmail(
+            Appointment appointment,
+            Prescription prescription) {
 
         byte[] pdf = PdfGenerator.generatePrescriptionPdf(prescription);
 
@@ -378,40 +484,53 @@ public class AppointmentServiceImpl implements AppointmentService {
                 appointment.getId());
     }
 
-    private void validateDate(LocalDate selectedDate, LocalDate today, LocalDate endDate) {
+    private void validateDate(
+            LocalDate selectedDate,
+            LocalDate today,
+            LocalDate endDate) {
 
         if (selectedDate.isBefore(today)) {
             throw new IllegalArgumentException("Cannot book past dates");
         }
 
         if (selectedDate.isAfter(endDate)) {
-            throw new IllegalArgumentException("Booking allowed only within next 2 weeks");
+            throw new IllegalArgumentException(
+                    "Booking allowed only within next 2 weeks");
         }
 
         if (selectedDate.getDayOfWeek().getValue() > 5) {
-            throw new IllegalArgumentException("Doctor not available on weekends");
+            throw new IllegalArgumentException(
+                    "Doctor not available on weekends");
         }
     }
 
-    private void validateDuplicateBooking(List<Appointment> appointments, Long patientId) {
+    private void validateDuplicateBooking(
+            List<Appointment> appointments,
+            Long patientId) {
 
         boolean exists = appointments.stream()
-                .anyMatch(a -> a.getPatient().getId().equals(patientId)
-                        && a.getStatus() != AppointmentStatus.CANCELLED);
+                .anyMatch(appointment ->
+                        appointment.getPatient().getId().equals(patientId)
+                                && appointment.getStatus()
+                                != AppointmentStatus.CANCELLED);
 
         if (exists) {
-            throw new IllegalArgumentException("Already booked for this date");
+            throw new IllegalArgumentException(
+                    "Already booked for this date");
         }
     }
 
     private int calculateQueue(List<Appointment> appointments) {
 
         long count = appointments.stream()
-                .filter(a -> a.getStatus() != AppointmentStatus.CANCELLED)
+                .filter(appointment ->
+                        appointment.getStatus()
+                                != AppointmentStatus.CANCELLED)
                 .count();
 
         if (count >= 10) {
-            throw new IllegalArgumentException("Selected date is full");
+            throw new IllegalArgumentException(
+                    "Selected date is full");
         }
 
         return (int) count + 1;
@@ -424,7 +543,7 @@ public class AppointmentServiceImpl implements AppointmentService {
     private AppointmentStatus parseStatus(String status) {
         try {
             return AppointmentStatus.valueOf(status.toUpperCase());
-        } catch (Exception e) {
+        } catch (Exception exception) {
             throw new IllegalArgumentException("Invalid status");
         }
     }
