@@ -1,3 +1,4 @@
+
 # 🩺 MedicNote
 
 > A full-stack healthcare management platform that connects **doctors** and **patients** through appointment booking, prescription management, and email delivery — built with a secure REST API and a modern role-based dashboard UI.
