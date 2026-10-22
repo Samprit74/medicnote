@@ -43,10 +43,14 @@ public class PdfGenerator {
             leftCell.setPaddingBottom(10);
             headerTable.addCell(leftCell);
 
+            String docName = prescription.getDoctor() != null && prescription.getDoctor().getName() != null ? prescription.getDoctor().getName() : "Unknown";
+            String docSpec = prescription.getDoctor() != null && prescription.getDoctor().getSpecialization() != null ? prescription.getDoctor().getSpecialization() : "General Physician";
+            String docEmail = prescription.getDoctor() != null && prescription.getDoctor().getEmail() != null ? prescription.getDoctor().getEmail() : "";
+
             Paragraph rightPara = new Paragraph();
-            rightPara.add(new Chunk("Dr. " + prescription.getDoctor().getName() + "\n", HEADER_FONT));
-            rightPara.add(new Chunk(prescription.getDoctor().getSpecialization() + "\n", NORMAL_FONT));
-            rightPara.add(new Chunk(prescription.getDoctor().getEmail(), SMALL_FONT));
+            rightPara.add(new Chunk("Dr. " + docName + "\n", HEADER_FONT));
+            rightPara.add(new Chunk(docSpec + "\n", NORMAL_FONT));
+            rightPara.add(new Chunk(docEmail, SMALL_FONT));
             
             PdfPCell rightCell = new PdfPCell(rightPara);
             rightCell.setBorder(Rectangle.NO_BORDER);
@@ -73,30 +77,35 @@ public class PdfGenerator {
             patientTable.setSpacingBefore(10);
             patientTable.setSpacingAfter(15);
 
+            String patientName = prescription.getPatient() != null && prescription.getPatient().getName() != null ? prescription.getPatient().getName().toUpperCase() : "UNKNOWN";
+            String patientAge = prescription.getPatient() != null ? String.valueOf(prescription.getPatient().getAge()) : "0";
+            String patientGender = prescription.getPatient() != null && prescription.getPatient().getGender() != null ? prescription.getPatient().getGender() : "-";
+            String patientId = prescription.getPatient() != null ? "PT-" + prescription.getPatient().getId() : "PT-0";
+
             PdfPCell cell1 = new PdfPCell();
             cell1.setBorder(Rectangle.NO_BORDER);
             cell1.addElement(new Phrase("PATIENT NAME", LABEL_FONT));
-            cell1.addElement(new Phrase(prescription.getPatient().getName().toUpperCase(), BOLD_FONT));
+            cell1.addElement(new Phrase(patientName, BOLD_FONT));
             patientTable.addCell(cell1);
 
             PdfPCell cell2 = new PdfPCell();
             cell2.setBorder(Rectangle.NO_BORDER);
             cell2.setHorizontalAlignment(Element.ALIGN_RIGHT);
             cell2.addElement(new Phrase("DATE", LABEL_FONT));
-            cell2.addElement(new Phrase(prescription.getDate().format(DateTimeFormatter.ofPattern("dd MMM yyyy")), BOLD_FONT));
+            cell2.addElement(new Phrase(prescription.getDate() != null ? prescription.getDate().format(DateTimeFormatter.ofPattern("dd MMM yyyy")) : "-", BOLD_FONT));
             patientTable.addCell(cell2);
 
             PdfPCell cell3 = new PdfPCell();
             cell3.setBorder(Rectangle.NO_BORDER);
             cell3.addElement(new Phrase("AGE / GENDER", LABEL_FONT));
-            cell3.addElement(new Phrase(prescription.getPatient().getAge() + " yrs / " + prescription.getPatient().getGender(), NORMAL_FONT));
+            cell3.addElement(new Phrase(patientAge + " yrs / " + patientGender, NORMAL_FONT));
             patientTable.addCell(cell3);
 
             PdfPCell cell4 = new PdfPCell();
             cell4.setBorder(Rectangle.NO_BORDER);
             cell4.setHorizontalAlignment(Element.ALIGN_RIGHT);
             cell4.addElement(new Phrase("PATIENT ID", LABEL_FONT));
-            cell4.addElement(new Phrase("PT-" + prescription.getPatient().getId(), NORMAL_FONT));
+            cell4.addElement(new Phrase(patientId, NORMAL_FONT));
             patientTable.addCell(cell4);
 
             document.add(patientTable);
@@ -104,7 +113,7 @@ public class PdfGenerator {
             // ================= DIAGNOSIS =================
             Paragraph diag = new Paragraph();
             diag.add(new Chunk("Diagnosis:  ", LABEL_FONT));
-            diag.add(new Chunk(prescription.getDiagnosis(), HEADER_FONT));
+            diag.add(new Chunk(prescription.getDiagnosis() != null ? prescription.getDiagnosis() : "-", HEADER_FONT));
             diag.setSpacingAfter(15);
             document.add(diag);
 
@@ -164,7 +173,7 @@ public class PdfGenerator {
             Paragraph sig = new Paragraph();
             sig.setAlignment(Element.ALIGN_RIGHT);
             sig.add(new Chunk("________________________\n", SMALL_FONT));
-            sig.add(new Chunk("Dr. " + prescription.getDoctor().getName() + "\n", BOLD_FONT));
+            sig.add(new Chunk("Dr. " + docName + "\n", BOLD_FONT));
             sig.add(new Chunk("Registered Medical Practitioner", SMALL_FONT));
 
             PdfPCell sigCell = new PdfPCell(sig);
@@ -188,12 +197,13 @@ public class PdfGenerator {
             return baos.toByteArray();
 
         } catch (Exception e) {
-            throw new RuntimeException("Error generating PDF", e);
+            e.printStackTrace();
+            throw new RuntimeException("Error generating PDF: " + e.getMessage(), e);
         }
     }
 
     private static PdfPCell createMedicineCell(String text, Font font) {
-        PdfPCell cell = new PdfPCell(new Phrase(text, font));
+        PdfPCell cell = new PdfPCell(new Phrase(text != null ? text : "", font));
         cell.setPadding(8);
         cell.setBorderColor(new Color(220, 220, 220));
         return cell;
