@@ -26,15 +26,17 @@ public class PdfGenerator {
             PdfWriter writer = PdfWriter.getInstance(document, baos);
             document.open();
 
+            // ================= WATERMARK =================
             addWatermark(writer);
 
+            // ================= HEADER =================
             PdfPTable headerTable = new PdfPTable(2);
             headerTable.setWidthPercentage(100);
-            headerTable.setWidths(new float[]{65, 35});
+            headerTable.setWidths(new float[]{60, 40});
 
             Paragraph clinicInfo = new Paragraph();
             clinicInfo.add(new Chunk("MEDICNOTE CLINIC\n", TITLE_FONT));
-            clinicInfo.add(new Chunk("General Healthcare & Wellness Center\n", new Font(Font.HELVETICA, 9, Font.ITALIC, new Color(80, 80, 80))));
+            clinicInfo.add(new Chunk("General Healthcare & Wellness Center\n", new Font(Font.HELVETICA, 9, Font.ITALIC, new Color(100, 100, 100))));
             
             PdfPCell leftCell = new PdfPCell(clinicInfo);
             leftCell.setBorder(Rectangle.NO_BORDER);
@@ -44,7 +46,7 @@ public class PdfGenerator {
             Paragraph rightPara = new Paragraph();
             rightPara.add(new Chunk("Dr. " + prescription.getDoctor().getName() + "\n", HEADER_FONT));
             rightPara.add(new Chunk(prescription.getDoctor().getSpecialization() + "\n", NORMAL_FONT));
-            rightPara.add(new Chunk("Contact: " + prescription.getDoctor().getEmail(), SMALL_FONT));
+            rightPara.add(new Chunk(prescription.getDoctor().getEmail(), SMALL_FONT));
             
             PdfPCell rightCell = new PdfPCell(rightPara);
             rightCell.setBorder(Rectangle.NO_BORDER);
@@ -54,6 +56,7 @@ public class PdfGenerator {
 
             document.add(headerTable);
 
+            // Dividing Line
             PdfContentByte cb = writer.getDirectContent();
             cb.setLineWidth(1f);
             cb.setColorStroke(new Color(0, 51, 102));
@@ -63,6 +66,7 @@ public class PdfGenerator {
 
             document.add(new Paragraph("\n"));
 
+            // ================= PATIENT DETAILS =================
             PdfPTable patientTable = new PdfPTable(2);
             patientTable.setWidthPercentage(100);
             patientTable.setWidths(new float[]{50, 50});
@@ -97,16 +101,19 @@ public class PdfGenerator {
 
             document.add(patientTable);
 
+            // ================= DIAGNOSIS =================
             Paragraph diag = new Paragraph();
             diag.add(new Chunk("Diagnosis:  ", LABEL_FONT));
             diag.add(new Chunk(prescription.getDiagnosis(), HEADER_FONT));
             diag.setSpacingAfter(15);
             document.add(diag);
 
+            // ================= Rx SYMBOL =================
             Paragraph rxSymbol = new Paragraph("℞", new Font(Font.TIMES_ROMAN, 26, Font.BOLD, new Color(0, 51, 102)));
             rxSymbol.setSpacingAfter(5);
             document.add(rxSymbol);
 
+            // ================= MEDICINES TABLE =================
             PdfPTable medicineTable = new PdfPTable(4);
             medicineTable.setWidthPercentage(100);
             medicineTable.setWidths(new float[]{40, 20, 20, 20});
@@ -132,17 +139,19 @@ public class PdfGenerator {
 
             document.add(medicineTable);
 
+            // ================= NOTES =================
             Paragraph notesTitle = new Paragraph("NOTES / ADVICE", LABEL_FONT);
             notesTitle.setSpacingAfter(4);
             document.add(notesTitle);
 
             Paragraph notes = new Paragraph(
-                    prescription.getNotes() != null && !prescription.getNotes().isEmpty() ? prescription.getNotes() : "No additional notes provided.",
+                    prescription.getNotes() != null ? prescription.getNotes() : "-",
                     new Font(Font.TIMES_ROMAN, 11, Font.ITALIC, new Color(60, 60, 60))
             );
             notes.setSpacingAfter(30);
             document.add(notes);
 
+            // ================= SIGNATURE =================
             PdfPTable signatureTable = new PdfPTable(2);
             signatureTable.setWidthPercentage(100);
             signatureTable.setWidths(new float[]{60, 40});
@@ -167,6 +176,7 @@ public class PdfGenerator {
 
             document.add(new Paragraph("\n\n"));
 
+            // ================= FOOTER =================
             Paragraph footer = new Paragraph(
                     "This is a digitally generated prescription by MedicNote. Valid without physical signature.",
                     new Font(Font.HELVETICA, 8, Font.NORMAL, new Color(150, 150, 150))
@@ -189,6 +199,7 @@ public class PdfGenerator {
         return cell;
     }
 
+    // ================= WATERMARK METHOD =================
     private static void addWatermark(PdfWriter writer) {
         PdfContentByte canvas = writer.getDirectContentUnder();
 
