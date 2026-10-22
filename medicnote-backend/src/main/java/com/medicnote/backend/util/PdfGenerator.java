@@ -35,7 +35,7 @@ public class PdfGenerator {
             headerTable.setWidths(new float[]{60, 40});
 
             Paragraph clinicInfo = new Paragraph();
-            clinicInfo.add(new Chunk("MEDICNOTE CLINIC\n", TITLE_FONT));
+            clinicInfo.add(new Chunk("MEDICNOTE\n", TITLE_FONT));
             clinicInfo.add(new Chunk("General Healthcare & Wellness Center\n", new Font(Font.HELVETICA, 9, Font.ITALIC, new Color(100, 100, 100))));
             
             PdfPCell leftCell = new PdfPCell(clinicInfo);
